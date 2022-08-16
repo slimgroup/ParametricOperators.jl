@@ -1,29 +1,26 @@
 module Tao
 
-using FFTW, LinearAlgebra
+    include("Types.jl")
+    include("Utils.jl")
+    include("ParameterVector.jl")
+    include("Operator.jl")
+    include("LinearOperator.jl")
 
-import Base.*, Base.+
-import LinearAlgebra.adjoint
+    export Optional, ParameterVector
+    export new_id
+    export AbstractOperator, ElementwiseOperator
+    export ElementwiseOperator, CompositionOperator
+    export AbstractLinearOperator, LinearOperatorException, LinearOperatorAdjoint
+    export Domain, Range, ddt, rdt, id, init, param, nparam
 
-import Random.GLOBAL_RNG
-import UUIDs.uuid4
+    include("BiasOperator.jl")
+    include("MatrixOperator.jl")
+    
+    export BiasOperator
+    export MatrixOperator
 
-export AbstractLinearOperator, MatrixOperator, DiagonalOperator, DFTOperator, DRFTOperator, ⊗, ParameterVector
-export IdentityOperator, RestrictionOperator, ddt, rdt, Domain, Range, param, nparam, init, count_params
-export RepartitionOperator, print_seq, println0
+    include("AddOperator.jl")
 
-include("Types.jl")
-include("LinearOperator.jl")
-include("AddOperator.jl")
-include("MulOperator.jl")
-include("KronOperator.jl")
-include("MatrixOperator.jl")
-include("DiagonalOperator.jl")
-include("RestrictionOperator.jl")
-include("IdentityOperator.jl")
-include("DFTOperator.jl")
-include("DRFTOperator.jl")
-include("Utils.jl")
-include("RepartitionOperator.jl")
+    export AddOperator
 
 end

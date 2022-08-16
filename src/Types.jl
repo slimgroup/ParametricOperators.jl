@@ -1,2 +1,6 @@
 Optional{T} = Union{T, Nothing}
-ParameterVector = Dict{Any, Vector}
+Shape = Tuple{Vararg{Int64}}
+
+struct TaoException
+    msg::String
+end

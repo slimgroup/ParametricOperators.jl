@@ -1,36 +1,51 @@
-struct LinearAdd{D,R} <: AbstractLinearOperator{D,R}
-    A::AbstractLinearOperator{D,R}
-    B::AbstractLinearOperator{D,R}
+import Base.+
+
+struct AddOperator{D,R,LHS<:AbstractLinearOperator{D,R},RHS<:AbstractLinearOperator{D,R}} <: AbstractLinearOperator{D,R}
+    lhs::LHS
+    rhs::RHS
 end
 
-function +(A::AbstractLinearOperator{D,R}, B::AbstractLinearOperator{D,R}) where {D,R}
-    @assert Domain(A) == Domain(B)
-    @assert Range(A) == Range(B)
-    return LinearAdd{D,R}(A, B)
+function +(lhs::AbstractLinearOperator{D,R}, rhs::AbstractLinearOperator{D,R}) where {D,R}
+    @assert Range(lhs) == Range(rhs)
+    return AddOperator{D,R,typeof(lhs),typeof(rhs)}(
+        lhs,
+        rhs
+    )
 end
 
-Domain(L::LinearAdd) = Domain(L.A)
-Range(L::LinearAdd) = Range(L.A)
-param(L::LinearAdd) = [param(L.A)..., param(L.B)...]
-nparam(L::LinearAdd) = nparam(L.A) + nparam(L.B) 
+Domain(A::AddOperator) = Domain(A.lhs)
+Range(A::AddOperator) = Range(A.rhs)
+id(A::AddOperator) = "$(id(A.lhs))_add_$(id(A.rhs))"
 
-function init(L::LinearAdd, pv::Optional{ParameterVector} = nothing)
-    θA = init(L.A, pv)
-    θB = init(L.B, pv)
-    θL = [θA..., θB...]
-    if !isnothing(pv)
-        pv[id(L)] = θL
-    end
-    return θL
+function init(A::AddOperator, pv::Optional{ParameterVector} = nothing)
+    θ_lhs = init(A.lhs, pv)
+    θ_rhs = init(A.rhs, pv)
+    return [θ_lhs..., θ_rhs...]
 end
 
-adjoint(L::LinearAdd) = LinearAdd(adjoint(L.A), adjoint(L.B))
-id(L::LinearAdd) = "$(id(L.A))_plus_$(id(L.B))"
-*(L::LinearAdd{D,R}, x::AbstractVector{D}) where {D,R} = L.A*x + L.B*x
-*(L::LinearAdd{D,R}, x::AbstractVecOrMat{D}) where {D,R} = L.A*x + L.B*x
+param(A::AddOperator) = [param(A.lhs)..., param(A.rhs)...]
+nparam(A::AddOperator) = nparam(A.lhs) + nparam(A.rhs)
 
-(L::LinearAdd)(θs::Any...) = LinearAdd(
-    L.A(select(1, nparam(L.A), collect(θs))...),
-    L.B(select(nparam(L.A)+1, nparam(L.A)+nparam(L.B), collect(θs))...)
-)
-(L::LinearAdd)(pv::ParameterVector) = LinearAdd(L.A(pv), L.B(pv))
+(A::AddOperator{D,R,LHS,RHS})(pv::ParameterVector) where {D,R,LHS<:AbstractLinearOperator{D,R},RHS<:AbstractLinearOperator{D,R}} =
+    AddOperator{D,R,LHS,RHS}(
+        A.lhs(pv),
+        A.rhs(pv)
+    )
+
+*(A::AddOperator{D,R,RHS,LHS}, x::V) where
+    {
+        D,
+        R,
+        RHS<:AbstractLinearOperator{D,R},
+        LHS<:AbstractLinearOperator{D,R},
+        V<:AbstractVector{D}
+    } = A.lhs*x + A.rhs*x
+
+*(A::LinearOperatorAdjoint{D,R,AddOperator{D,R,RHS,LHS}}, x::V) where
+    {
+        D,
+        R,
+        RHS<:AbstractLinearOperator{D,R},
+        LHS<:AbstractLinearOperator{D,R},
+        V<:AbstractVector{D}
+    } = A.lhs'*x + A.rhs'*x
