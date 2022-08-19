@@ -35,7 +35,7 @@ Number of parameters associated with operator F.
 """
 nparams(F::AbstractOperator) = throw(TaoException("nparam() is not implemented for $(typeof(F))"))
 
-"""s
+"""
 Initializes operator and optionally stores the initialized value in a parameter container.
 """
 init(F::AbstractOperator, ::Optional{ParameterContainer} = nothing) =
@@ -45,6 +45,12 @@ init(F::AbstractOperator, ::Optional{ParameterContainer} = nothing) =
 ID of the given operator.
 """
 id(F::AbstractOperator) = throw(TaoException("id() is not implemented for $(typeof(F))"))
+
+"""
+Recreates the operator with a new domain type.
+"""
+retype_domain(F::AbstractOperator{D,R}, ::T) where {D,R,T} =
+    throw(TaoException("retype_domain() is not implemented for $(typeof(F))"))
 
 """
 Calls the operator F with vector x and parameters θ.

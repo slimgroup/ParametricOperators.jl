@@ -5,6 +5,7 @@ module Tao
     include("Utils.jl")
     include("ParameterContainer.jl")
 
+    export issubsettypeof
     export TaoException, Optional
     export ParameterContainer
 
@@ -16,18 +17,23 @@ module Tao
     export ddt, rdt, Domain, Range, param, nparam, init, id
 
     # Operator combination types and functions
-    include("AddOperator.jl")
     include("ElementwiseOperator.jl")
     include("CompositionOperator.jl")
+    include("AddOperator.jl")
+    include("MulOperator.jl")
+    include("KronOperator.jl")
 
-    export AddOperator, AddLinearOperator
     export ElementwiseOperator, CompositionOperator
+    export AddOperator, AddLinearOperator, MulOperator, KronOperator
+    export ⊗
 
     # Specific operator types and functions
+    include("DFTOperator.jl")
+    include("DRFTOperator.jl")
     include("MatrixOperator.jl")
     include("BiasOperator.jl")
     include("FunctionOperator.jl")
 
-    export MatrixOperator, BiasOperator, FunctionOperator
+    export MatrixOperator, BiasOperator, FunctionOperator, DFTOperator, DRFTOperator
 
 end
