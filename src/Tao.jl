@@ -1,26 +1,33 @@
 module Tao
 
+    # Common package types and utilities
     include("Types.jl")
     include("Utils.jl")
-    include("ParameterVector.jl")
+    include("ParameterContainer.jl")
+
+    export TaoException, Optional
+    export ParameterContainer
+
+    # Abstract operator types and functions
     include("Operator.jl")
     include("LinearOperator.jl")
 
-    export Optional, ParameterVector
-    export new_id
-    export AbstractOperator, ElementwiseOperator
-    export ElementwiseOperator, CompositionOperator
-    export AbstractLinearOperator, LinearOperatorException, LinearOperatorAdjoint
-    export Domain, Range, ddt, rdt, id, init, param, nparam
+    export AbstractOperator, AbstractLinearOperator
+    export ddt, rdt, Domain, Range, param, nparam, init, id
 
-    include("BiasOperator.jl")
-    include("MatrixOperator.jl")
-    
-    export BiasOperator
-    export MatrixOperator
-
+    # Operator combination types and functions
     include("AddOperator.jl")
+    include("ElementwiseOperator.jl")
+    include("CompositionOperator.jl")
 
-    export AddOperator
+    export AddOperator, AddLinearOperator
+    export ElementwiseOperator, CompositionOperator
+
+    # Specific operator types and functions
+    include("MatrixOperator.jl")
+    include("BiasOperator.jl")
+    include("FunctionOperator.jl")
+
+    export MatrixOperator, BiasOperator, FunctionOperator
 
 end

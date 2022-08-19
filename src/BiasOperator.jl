@@ -1,37 +1,53 @@
+import Base.*
+
+"""
+Bias operator.
+"""
 struct BiasOperator{T} <: AbstractLinearOperator{T,T}
-    n::Int64
     θ::Optional{Vector{T}}
+    n::Int64
     id::Any
 end
 
-BiasOperator{T}(n::Int64) where {T} = BiasOperator{T}(
-    n,
-    nothing,
-    new_id()
-)
+"""
+Bias constructor.
+"""
+BiasOperator{T}(n::Int64) where {T} =
+    BiasOperator{T}(
+        nothing,
+        n,
+        uid()
+    )
 
+# Bias operator impls
 Domain(A::BiasOperator) = A.n
 Range(A::BiasOperator) = A.n
+params(A::BiasOperator) = [A.θ]
+nparams(A::BiasOperator) = 1
 
-id(A::BiasOperator) = A.id
-
-function init(A::BiasOperator{T}, pv::Optional{ParameterVector} = nothing) where {T}
-    θ = rand(T, A.n)
-    if !isnothing(pv)
-        pv[A.id] = θ
+function init(A::BiasOperator{T}, pc::Optional{ParameterContainer} = nothing) where {T}
+    θ = zeros(T, A.n)
+    if !isnothing(pc)
+        pc[A.id] = θ
     end
     return [θ]
 end
 
-param(A::BiasOperator) = A.θ
-nparam(A::BiasOperator) = 1
+id(A::BiasOperator) = A.id
 
-(A::BiasOperator{T})(pv::ParameterVector{T}) where {T} =
+*(A::BiasOperator{T}, ::V) where {T,V<:AbstractVector{T}} = A.θ
+*(A::LinearOperatorAdjoint{T,T,BiasOperator{T}}, ::Any) where {T} = A.inner.θ
+
+(A::BiasOperator{T})(V::Vector{T}) where {T} =
     BiasOperator{T}(
+        V,
         A.n,
-        pv[A.id],
         A.id
     )
 
-*(A::BiasOperator{T}, ::V) where {T,V<:AbstractVector{T}} = A.θ
-*(A::LinearOperatorAdjoint{T,T,BiasOperator{T}}, ::V) where {T,V<:AbstractVector{T}} = A.inner.θ
+(A::BiasOperator{T})(pc::ParameterContainer) where {T} =
+    BiasOperator{T}(
+        pc[A.id][1],
+        A.n,
+        A.id
+    )
