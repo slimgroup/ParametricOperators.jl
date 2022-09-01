@@ -1,35 +1,24 @@
-struct LinearMul{D,R1,R2} <: AbstractLinearOperator{D,R2}
-    A::AbstractLinearOperator{R1,R2}
-    B::AbstractLinearOperator{D,R1}
+struct MulOperator{D,T,R,O<:ParamOrdering} <: Operator{D,R,Linear,NonParametric}
+    lhs::Operator{T,R,Linear,<:Parametricity}
+    rhs::Operator{D,T,Linear,<:Parametricity}
 end
 
-function *(A::AbstractLinearOperator{R1,R2}, B::AbstractLinearOperator{D,R1}) where {D,R1,R2}
-    @assert Range(B) == Domain(A)
-    return LinearMul{D,R1,R2}(A, B)
+function *(lhs::Operator{T,R,Linear,<:Parametricity}, rhs::Operator{D,T,Linear,<:Parametricity}) where {D,T,R}
+    @assert Domain(lhs) == Range(rhs)
+    return MulOperator{D,T,R,LeftFirst}(lhs, rhs)
 end
 
-Domain(L::LinearMul) = Domain(L.B)
-Range(L::LinearMul) = Range(L.A)
-param(L::LinearMul) = [param(L.A)..., param(L.B)...]
-nparam(L::LinearMul) = nparam(L.A) + nparam(L.B) 
+Domain(A::MulOperator)  = Domain(A.rhs)
+Range(A::MulOperator)   = Range(A.lhs)
+nparams(A::MulOperator) = nparams(A.lhs) + nparams(A.rhs)
+init(A::MulOperator)    = [init(A.lhs)..., init(A.rhs)...]
+id(A::MulOperator)      = "[$(id(A.lhs))]_add_[$(id(A.rhs))]"
 
-function init(L::LinearMul, pv::Optional{ParameterVector} = nothing)
-    θA = init(L.A, pv)
-    θB = init(L.B, pv)
-    θL = [θA..., θB...]
-    if !isnothing(pv)
-        pv[id(L)] = θL
-    end
-    return θL
-end
+adjoint(A::MulOperator{D,T,R,LeftFirst}) where {D,T,R} = MulOperator{R,T,D,RightFirst}(adjoint(A.rhs), adjoint(A.lhs))
+adjoint(A::MulOperator{D,T,R,RightFirst}) where {D,T,R} = MulOperator{R,T,D,LeftFirst}(adjoint(A.rhs), adjoint(A.lhs))
 
-adjoint(L::LinearMul) = LinearMul(adjoint(L.B), adjoint(L.A))
-id(L::LinearMul) = "$(id(L.A))_mul_$(id(L.B))"
-*(L::LinearMul{D,R}, x::AbstractVector{D}) where {D,R} = L.A*(L.B*x)
-*(L::LinearMul{D,R}, x::AbstractVecOrMat{D}) where {D,R} = L.A*(L.B*x)
-
-(L::LinearMul)(θs::Any...) = LinearMul(
-    L.A(select(1, nparam(L.A), collect(θs))...),
-    L.B(select(nparam(L.A)+1, nparam(L.A)+nparam(L.B), collect(θs))...)
-)
-(L::LinearMul)(pv::ParameterVector) = LinearMul(L.A(pv), L.B(pv))
+(A::MulOperator{D,T,R,<:ParamOrdering})(x::V) where {D,T,R,V<:AbstractVector{D}} = A.lhs*(A.rhs*x)
+(A::MulOperator{D,T,R,LeftFirst})(θ::Vector{<:AbstractArray}) where {D,T,R} =
+    MulOperator{D,T,R,LeftFirst}(A.lhs(θ[1:nparams(A.lhs)]), A.rhs(θ[nparams(A.lhs)+1:nparams(A.lhs)+nparams(A.rhs)]))
+(A::MulOperator{D,T,R,RightFirst})(θ::Vector{<:AbstractArray}) where {D,T,R} =
+    MulOperator{D,T,R,RightFirst}(A.lhs(θ[nparams(A.lhs)+1:nparams(A.lhs)+nparams(A.rhs)]), A.rhs(θ[1:nparams(A.lhs)]))

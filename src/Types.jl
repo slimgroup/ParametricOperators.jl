@@ -1,2 +1,5 @@
-Optional{T} = Union{T, Nothing}
-ParameterVector = Dict{Any, Vector}
+struct TaoException <: Exception
+    msg::String
+end
+
+Optional{T} = Union{T, AbstractArray}

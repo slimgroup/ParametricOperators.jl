@@ -1,36 +1,28 @@
-struct LinearAdd{D,R} <: AbstractLinearOperator{D,R}
-    A::AbstractLinearOperator{D,R}
-    B::AbstractLinearOperator{D,R}
+struct AddOperator{D,R,L} <: Operator{D,R,L,NonParametric}
+    lhs::Operator{D,R,<:Linearity,<:Parametricity}
+    rhs::Operator{D,R,<:Linearity,<:Parametricity}
 end
 
-function +(A::AbstractLinearOperator{D,R}, B::AbstractLinearOperator{D,R}) where {D,R}
-    @assert Domain(A) == Domain(B)
-    @assert Range(A) == Range(B)
-    return LinearAdd{D,R}(A, B)
+function +(lhs::Operator{D,R,<:Linearity,<:Parametricity}, rhs::Operator{D,R,<:Linearity,<:Parametricity}) where {D,R}
+    @assert Domain(lhs) == Domain(rhs)
+    @assert Range(lhs) == Range(rhs)
+    return AddOperator{D,R,NonLinear}(lhs, rhs)
 end
 
-Domain(L::LinearAdd) = Domain(L.A)
-Range(L::LinearAdd) = Range(L.A)
-param(L::LinearAdd) = [param(L.A)..., param(L.B)...]
-nparam(L::LinearAdd) = nparam(L.A) + nparam(L.B) 
-
-function init(L::LinearAdd, pv::Optional{ParameterVector} = nothing)
-    θA = init(L.A, pv)
-    θB = init(L.B, pv)
-    θL = [θA..., θB...]
-    if !isnothing(pv)
-        pv[id(L)] = θL
-    end
-    return θL
+function +(lhs::Operator{D,R,Linear,<:Parametricity}, rhs::Operator{D,R,Linear,<:Parametricity}) where {D,R}
+    @assert Domain(lhs) == Domain(rhs)
+    @assert Range(lhs) == Range(rhs)
+    AddOperator{D,R,Linear}(lhs, rhs)
 end
 
-adjoint(L::LinearAdd) = LinearAdd(adjoint(L.A), adjoint(L.B))
-id(L::LinearAdd) = "$(id(L.A))_plus_$(id(L.B))"
-*(L::LinearAdd{D,R}, x::AbstractVector{D}) where {D,R} = L.A*x + L.B*x
-*(L::LinearAdd{D,R}, x::AbstractVecOrMat{D}) where {D,R} = L.A*x + L.B*x
+Domain(A::AddOperator)  = Domain(A.lhs)
+Range(A::AddOperator)   = Range(A.rhs)
+nparams(A::AddOperator) = nparams(A.lhs) + nparams(A.rhs)
+init(A::AddOperator)    = [init(A.lhs)..., init(A.rhs)...]
+id(A::AddOperator)      = "[$(id(A.lhs))]_add_[$(id(A.rhs))]"
 
-(L::LinearAdd)(θs::Any...) = LinearAdd(
-    L.A(select(1, nparam(L.A), collect(θs))...),
-    L.B(select(nparam(L.A)+1, nparam(L.A)+nparam(L.B), collect(θs))...)
-)
-(L::LinearAdd)(pv::ParameterVector) = LinearAdd(L.A(pv), L.B(pv))
+adjoint(A::AddOperator{D,R,Linear}) where {D,R} = AddOperator{R,D,Linear}(adjoint(A.lhs), adjoint(A.rhs))
+
+(A::AddOperator{D,R,L})(x::V) where {D,R,L,V<:AbstractVector{D}} = A.lhs(x) + A.rhs(x)
+(A::AddOperator{D,R,L})(θ::Vector{<:AbstractArray}) where {D,R,L} =
+    AddOperator{D,R,L}(A.lhs(θ[1:nparams(A.lhs)]), A.rhs(θ[nparams(A.lhs)+1:nparams(A.lhs)+nparams(A.rhs)]))

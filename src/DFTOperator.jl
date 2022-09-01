@@ -1,51 +1,42 @@
-struct DFTOperator{T<:Complex} <: AbstractLinearOperator{T,T}
-    shape::AbstractVector{<:Integer}
-    adjoint::Bool
+struct DFTOperator{T<:Number} <: Operator{T,T,Linear,NonParametric}
+    shape::Vector{Int64}
+    dims::Vector{Int64}
     id::Any
 end
 
-function DFTOperator{T}(shape::AbstractVector{<:Integer}) where {T<:Complex}
-    return DFTOperator{T}(
-        shape,
-        false,
-        uuid4(GLOBAL_RNG)
-    )
-end
-
-Domain(F::DFTOperator) = prod(F.shape)
-Range(F::DFTOperator) = prod(F.shape)
-param(F::DFTOperator) = []
-nparam(F::DFTOperator) = 0
-
-function init(F::DFTOperator, pv::Optional{ParameterVector})
-    if !isnothing(pv)
-        pv[F.id] = []
-    end
-    return []
-end
-
-adjoint(F::DFTOperator{T}) where{T} =
+DFTOperator{T}(shape::Vector{Int64}, dims::Vector{Int64}) where {T} =
     DFTOperator{T}(
-        F.shape,
-        !F.adjoint,
-        F.id
+        shape,
+        dims,
+        uid()
     )
 
-id(F::DFTOperator) = F.id
+DFTOperator{T}(shape::Vector{Int64}) where {T} =
+    DFTOperator{T}(
+        shape,
+        collect(1:length(shape)),
+        uid()
+    )
 
-function *(F::DFTOperator{T}, x::AbstractVector{T}) where {T}
-    if F.adjoint
-        rx = reshape(x, tuple(F.shape...))
-        ry = ifft(rx)*T(sqrt(Range(F)))
-        y = vec(ry)
-        return y
-    else
-        rx = reshape(x, tuple(F.shape...))
-        ry = fft(rx)/T(sqrt(Domain(F)))
-        y = vec(ry)
-        return y
-    end
+Domain(F::DFTOperator)  = prod(F.shape)
+Range(F::DFTOperator)   = prod(F.shape)
+nparams(F::DFTOperator) = 0
+init(::DFTOperator)     = Vector{Vector{Nothing}}()
+id(F::DFTOperator)      = F.id
+
+(F::DFTOperator)(::Vector{<:AbstractArray}) = F
+
+function (F::DFTOperator{T})(x::V) where {T<:Number,V<:AbstractVector{T}}
+    scale = sqrt(prod([F.shape[d] for d in F.dims]))
+    xr = reshape(x, F.shape...)
+    yr = fft(xr, F.dims)/T(scale)
+    return vec(yr)
 end
 
-(F::DFTOperator{T})(θs::Any...) where {T} = F
-(F::DFTOperator{T})(pv::ParameterVector) where {T} = F
+function (A::Adjoint{T,T,NonParametric,DFTOperator{T}})(y::V) where {T<:Number,V<:AbstractVector{T}}
+    F = A.op
+    scale = sqrt(prod([F.shape[d] for d in F.dims]))
+    yr = reshape(y, F.shape...)
+    xr = ifft(yr, F.dims)*T(scale)
+    return vec(xr)
+end

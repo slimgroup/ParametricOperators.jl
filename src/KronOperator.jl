@@ -1,62 +1,59 @@
-struct LinearKron{D,R1,R2} <: AbstractLinearOperator{D,R2}
-    A::AbstractLinearOperator{R1,R2}
-    B::AbstractLinearOperator{D,R1}
-    row_first::Bool
+abstract type KronOrder end
+struct ColFirst <: KronOrder end
+struct RowFirst <: KronOrder end
+
+struct KronOperator{D,R,O<:KronOrder} <: Operator{D,R,Linear,NonParametric}
+    lhs::Operator{D,R,Linear,<:Parametricity}
+    rhs::Operator{D,R,Linear,<:Parametricity}
 end
 
-function ⊗(A::AbstractLinearOperator{R1,R2}, B::AbstractLinearOperator{D,R1}) where {D,R1,R2}
-    return LinearKron{D,R1,R2}(A, B, true)
+function kron(lhs::Operator{D,R,Linear,<:Parametricity},
+              rhs::Operator{D,R,Linear,<:Parametricity}) where {D,R}
+    return KronOperator{D,R,ColFirst}(lhs, rhs)
 end
 
-Domain(L::LinearKron) = Domain(L.A)*Domain(L.B)
-Range(L::LinearKron) = Range(L.A)*Range(L.B)
-param(L::LinearKron) = [param(L.A)..., param(L.B)...]
-nparam(L::LinearKron) = nparam(L.A) + nparam(L.B) 
-
-function init(L::LinearKron, pv::Optional{ParameterVector} = nothing)
-    θA = init(L.A, pv)
-    θB = init(L.B, pv)
-    θL = [θA..., θB...]
-    if !isnothing(pv)
-        pv[id(L)] = θL
-    end
-    return θL
-end
-
-adjoint(L::LinearKron{D,R1,R2}) where {D,R1,R2} =
-    LinearKron{R2,R1,D}(adjoint(L.A), adjoint(L.B), !L.row_first)
-id(L::LinearKron) = "$(id(L.A))_kron_$(id(L.B))"
-
-function *(L::LinearKron{D,R1,R2}, x::AbstractVector{D}) where {D,R1,R2}
-    shape = (Domain(L.B), Domain(L.A))
-    y = reshape(x, shape)
-    if L.row_first
-        y = mapslices(r -> L.B*r, y, dims = [1])
-        y = mapslices(c -> L.A*c, y, dims = [2])
+function kron(lhs::Operator{D1,R,Linear,<:Parametricity},
+              rhs::Operator{D2,R,Linear,<:Parametricity}) where {D1,D2,R}
+    D = subtype(D1, D2)
+    if isnothing(D)
+        throw(TaoException("Incompatible domain types $(D1) and $(D2) in KronOperator"))
+    elseif (D == D1)
+        P = promotetype(D,D2,(Domain(rhs)))
+        rhs_out = rhs*P
+        return KronOperator{D,R,RowFirst}(lhs, rhs_out)
+    elseif (D == D2)
+        P = promotetype(D,D1,(Domain(lhs)))
+        lhs_out = lhs*P
+        return KronOperator{D,R,ColFirst}(lhs_out, rhs)
     else
-        y = mapslices(c -> L.A*c, y, dims = [2])
-        y = mapslices(r -> L.B*r, y, dims = [1])
+        throw(TaoException("Invalid state encountered in KronOperator"))
     end
-    return vec(y)
 end
 
-function *(L::LinearKron{D,R1,R2}, x::AbstractVecOrMat{D}) where {D,R1,R2}
-    nv = size(x)[2]
-    shape = (Domain(L.B), Domain(L.A), nv)
-    y = reshape(x, shape)
-    if L.row_first
-        y = mapslices(r -> L.B*r, y, dims = [1,3])
-        y = mapslices(c -> L.A*c, y, dims = [2,3])
-    else
-        y = mapslices(c -> L.A*c, y, dims = [2,3])
-        y = mapslices(r -> L.B*r, y, dims = [1,3])
-    end
-    return reshape(y, (Range(L), nv))
+⊗(lhs::Operator, rhs::Operator) = kron(lhs, rhs)
+
+Domain(A::KronOperator)  = min(Domain(A.lhs),1)*min(Domain(A.rhs),1)
+Range(A::KronOperator)   = min(Range(A.lhs),1)*min(Range(A.rhs),1)
+nparams(A::KronOperator) = nparams(A.lhs) + nparams(A.rhs)
+init(A::KronOperator)    = [init(A.lhs)..., init(A.rhs)...]
+id(A::KronOperator)      = "[$(id(A.lhs))]_add_[$(id(A.rhs))]"
+
+adjoint(A::KronOperator{D,R,ColFirst}) where {D,R} = KronOperator{R,D,RowFirst}(adjoint(A.lhs), adjoint(A.rhs))
+adjoint(A::KronOperator{D,R,RowFirst}) where {D,R} = KronOperator{R,D,ColFirst}(adjoint(A.lhs), adjoint(A.rhs))
+
+function (A::KronOperator{D,R,ColFirst})(x::V) where {D,R,V<:AbstractVector{D}}
+    xr = reshape(x, Domain(A.rhs), Domain(A.lhs))
+    y1 = mapreduce(c -> A.rhs*c, hcat, eachcol(xr))
+    y2 = mapreduce(r -> transpose(A.lhs*r), vcat, eachrow(y1))
+    return vec(y2)
 end
 
-(L::LinearKron)(θs::Any...) = LinearKron(
-    L.A(select(1, nparam(L.A), collect(θs))...),
-    L.B(select(nparam(L.A)+1, nparam(L.A)+nparam(L.B), collect(θs))...),
-    L.row_first
-)
-(L::LinearKron)(pv::ParameterVector) = LinearKron(L.A(pv), L.B(pv), L.row_first)
+function (A::KronOperator{D,R,RowFirst})(x::V) where {D,R,V<:AbstractVector{D}}
+    xr = reshape(x, Domain(A.rhs), Domain(A.lhs))
+    y1 = mapreduce(r -> transpose(A.lhs*r), vcat, eachrow(xr))
+    y2 = mapreduce(c -> A.rhs*c, hcat, eachcol(y1))
+    return vec(y2)
+end
+
+(A::KronOperator{D,R,O})(θ::Vector{<:Optional{<:AbstractArray}}) where {D,R,O} =
+    KronOperator{D,R,O}(A.lhs(θ[1:nparams(A.lhs)]), A.rhs(θ[nparams(A.lhs)+1:nparams(A.lhs)+nparams(A.rhs)]))

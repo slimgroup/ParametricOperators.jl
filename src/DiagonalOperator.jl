@@ -1,45 +1,19 @@
-struct DiagonalOperator{T<:Number} <: AbstractLinearOperator{T,T}
-    n::Integer
-    θ::Optional{AbstractVector{T}}
+struct DiagonalOperator{T} <: Operator{T,T,Linear,NonParametric}
+    n::Int64
     id::Any
 end
 
-DiagonalOperator{T}(n::Integer) where{T} =
+DiagonalOperator{T}(n::Int64) where {T} =
     DiagonalOperator{T}(
         n,
-        nothing,
-        uuid4(GLOBAL_RNG)
+        uid()
     )
 
 Domain(A::DiagonalOperator) = A.n
-Range(A::DiagonalOperator) = A.n
-param(A::DiagonalOperator) = [A.θ]
-nparam(A::DiagonalOperator) = 1
-
-function init(A::DiagonalOperator{T}, pv::Optional{ParameterVector}) where {T}
-    θ = rand(T, A.n)
-    if !isnothing(pv)
-        pv[A.id] = [θ]
-    end
-    return [θ]
-end
-
-adjoint(A::DiagonalOperator) = A
-
+Range(A::DiagonalOperator)  = A.n
+nparams(::DiagonalOperator) = 1
+init(A::DiagonalOperator{T}) where {T} = [randn(T, A.n)]
 id(A::DiagonalOperator) = A.id
-*(A::DiagonalOperator{T}, x::AbstractVector{T}) where {T} = A.θ.*x
-*(A::DiagonalOperator{T}, x::AbstractVecOrMat{T}) where {T} = A.θ.*x
 
-(A::DiagonalOperator{T})(θ::AbstractVector{T}) where {T} =
-    DiagonalOperator{T}(
-        A.n,
-        θ,
-        A.id
-    )
-
-(A::DiagonalOperator{T})(pv::ParameterVector) where {T} =
-    DiagonalOperator{T}(
-        A.n,
-        pv[A.id][1],
-        A.id
-    )
+(A::Parameterized{T,T,Linear,DiagonalOperator{T}})(x::V) where {T<:Number,V<:AbstractVector{T}} = A.θ[1].*x
+(A::Parameterized{T,T,Linear,Adjoint{T,T,NonParametric,DiagonalOperator{T}}})(x::V) where {T<:Number,V<:AbstractVector{T}} = conj(A.θ[1]).*x
