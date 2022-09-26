@@ -36,7 +36,7 @@ function ChainRulesCore.rrule(A::TaoOperator{D,R,Linear,NonParametric,T}, x::Abs
     y = A(x)
     function pullback(dy)
         dx = @thunk(A'(dy))
-        return dx
+        return NoTangent(), dx
     end
     return y, pullback
 end
