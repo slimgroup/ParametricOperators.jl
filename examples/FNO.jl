@@ -1,69 +1,101 @@
+using ChainRulesCore: @ignore_derivatives
+using ColorSchemes
+using GLMakie
 using LinearAlgebra
+using MAT
 using Tao
+using Zygote
 
-# Channels and (x, y, t) dimensions
-nc = 20
-nx = 16
-ny = 32
-nt = 10
+nc = 10
+nx = 64
+ny = 64
+nt = 16
+n  = nc*nx*ny*nt
 
-# (x, y, t) modes
-mx = 4
-my = 4
-mt = 4
+mx = 8
+my = 8
+mt = 8
 
-# Fourier transform in each dimension
-Fx = DFTOperator{ComplexF64}([nx])
-Fy = DFTOperator{ComplexF64}([ny])
-Ft = DFTOperator{ComplexF64}([nt])
+T = Float32
+C_in = TaoConvert{T,Complex{T}}(nx*ny*nt)
+C_out(x::V) where {V<:AbstractVector{Complex{T}}} = real.(x)
 
-# Restriction operators to select modes in each dimension
-Rx = RestrictionOperator{ComplexF64}(Range(Fx), [1:mx, nx-mx+1:nx])
-Ry = RestrictionOperator{ComplexF64}(Range(Fy), [1:my, ny-my+1:ny])
-Rt = RestrictionOperator{ComplexF64}(Range(Ft), [1:mt])
+Is = TaoIdentity{Complex{T}}(nt*ny*nx)
+Ic = TaoIdentity{Complex{T}}(nc)
 
-# Fourier transform (with restriction) along (x, y, t)
-Fs = (Rt*Ft) ⊗ (Ry*Fy) ⊗ (Rx*Fx)
+function Block()
+    Fx = TaoDFT{Complex{T}}(nx)
+    Fy = TaoDFT{Complex{T}}(ny)
+    Ft = TaoDFT{Complex{T}}(nt)
 
-# Identity along channels, (x, y, t), and restricted (x, y, t)
-Ic = IdentityOperator{ComplexF64}(nc)
-Is = IdentityOperator{ComplexF64}(nx*ny*nt)
-Ir = IdentityOperator{ComplexF64}(Range(Fs))
+    Rx = TaoRestriction{Complex{T}}(nx, 1:mx, nx-mx+1:nx)
+    Ry = TaoRestriction{Complex{T}}(ny, 1:my, ny-my+1:ny)
+    Rt = TaoRestriction{Complex{T}}(nt, 1:mt)
 
-# Full Fourier transform with channels excluded
-F = Fs ⊗ Ic
+    Wc1 = TaoMatrix{Complex{T}}(nc, nc)
+    Wc2 = TaoMatrix{Complex{T}}(nc, nc)
 
-# Dense weights along channel dimension
-Wc1 = MatrixOperator{ComplexF64}(nc, nc)
-Wc2 = MatrixOperator{ComplexF64}(nc, nc)
+    F = (Rt ⊗ Ry ⊗ Rx ⊗ Ic) * (Ft ⊗ Fy ⊗ Fx ⊗ Ic)
+    D = TaoDiagonal{Complex{T}}(Range(Rt)*Range(Ry)*Range(Rx)) ⊗ Wc1
+    S = F'*D*F
+    W = Is ⊗ Wc2
+    σ = x -> tanh.(x)
+    return σ ∘ (S + W)
+end
 
-# Diagonal operator (elementwise mul) along (c, x, y, t)
-Ds = DiagonalOperator{ComplexF64}(Range(F))
+Q = Is ⊗ TaoMatrix{Complex{T}}(nc, 1)
+P = Is ⊗ TaoMatrix{Complex{T}}(1, nc)
 
-# Full elementwise operator with weighted channel mixing
-D = (Ir ⊗ Wc1) * Ds
+B1 = Block()
+B2 = Block()
+F = C_out ∘ P ∘ B2 ∘ B1 ∘ Q ∘ C_in
 
-# Spectral convolution
-S = F'*D*F
+data = matread("data/ns_V1e-3_N5000_T50.mat")
+u = data["u"]
 
-# Passthrough weighting
-W = Is ⊗ Wc2
+n_train = 1000
+n_test  = 100
+x_train = repeat(u[1:n_train,:,:,1:1], 1, 1, 1, nt)
+x_test  = repeat(u[n_train+1:n_train+n_test,:,:,1:1], 1, 1, 1, nt)
+y_train = u[1:n_train,:,:,1:nt]
+y_test  = u[1:n_train,:,:,1:nt]
 
-# Full FNO block (w/o nonlinearity)
-B = S+W
+# Init params and adam variables
+θ  = init(F)
+α  = T(1e-3)
+ϵ  = T(1e-8)
+β1 = T(0.9)
+β2 = T(0.999)
+m  = zero(θ)
+v  = zero(θ)
+m̂  = zero(θ)
+v̂  = zero(θ)
 
-# Create a random vector in the Domain of B
-x = rand(ddt(B), Domain(B))
+L(ŷ::Y, y::Y) where {Y<:AbstractVector{T}} = norm(ŷ.-y)/norm(ŷ)
+n_epoch  = 100
+Ls_train = zeros(T, n_epoch)
+Ls_test  = zeros(T, n_epoch)
 
-# Initialize parameters
-θ = ParameterVector()
-init(B, θ)
-
-# Display number of parameters
-@show count_params(B(θ))
-
-# Fake data
-x = rand(ddt(B), Domain(B))
-y = rand(rdt(B), Range(B))
-
-@show size(x) size(B(θ)*x)
+for i in 1:n_epoch
+    L_train = T(0)
+    for i = 1:n_train
+        @show i
+        x = vec(x_train[i,:,:,:])
+        y = vec(y_train[i,:,:,:])
+        g = gradient(p -> begin
+            ŷ = F(x, p)
+            l = L(ŷ, y)
+            @show l
+            @ignore_derivatives L_train += l
+            return l
+        end, θ)[1]
+        m .= (β1.*m + (1-β1).*g) 
+        v .= β2.*v + (1-β2).*(g.^2)
+        m̂ .= m./(1-β1^i)
+        v̂ .= v./(1-β2^i)
+        θ .-= α.*m̂./(sqrt.(v̂) .+ ϵ)
+    end
+    L_train ./= n_train
+    Ls_train[i] = L_train
+    @show L_train
+end

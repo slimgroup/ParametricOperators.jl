@@ -1,29 +1,31 @@
 module Tao
 
-using FFTW, LinearAlgebra
+import Base: +, -, *, /, ∘
+import Base: adjoint, kron
 
-import Base.*, Base.+
-import LinearAlgebra.adjoint
+using ChainRulesCore
+using FFTW: fft, ifft
+using Match
+using Random: GLOBAL_RNG
+using UUIDs: uuid4, UUID
 
-import Random.GLOBAL_RNG
-import UUIDs.uuid4
+include("TaoCommon.jl")
 
-export AbstractLinearOperator, MatrixOperator, DiagonalOperator, DFTOperator, DRFTOperator, ⊗, ParameterVector
-export IdentityOperator, RestrictionOperator, ddt, rdt, Domain, Range, param, nparam, init, count_params
-export RepartitionOperator, print_seq, println0
+include("TaoOperator.jl")
+include("TaoOperatorTraits.jl")
 
-include("Types.jl")
-include("LinearOperator.jl")
-include("AddOperator.jl")
-include("MulOperator.jl")
-include("KronOperator.jl")
-include("MatrixOperator.jl")
-include("DiagonalOperator.jl")
-include("RestrictionOperator.jl")
-include("IdentityOperator.jl")
-include("DFTOperator.jl")
-include("DRFTOperator.jl")
-include("Utils.jl")
-include("RepartitionOperator.jl")
+include("TaoAdd.jl")
+include("TaoCompose.jl")
+include("TaoKron.jl")
 
-end
+include("TaoConvert.jl")
+include("TaoIdentity.jl")
+include("TaoMatrix.jl")
+include("TaoDiagonal.jl")
+include("TaoFunction.jl")
+include("TaoBias.jl")
+include("TaoRestriction.jl")
+include("TaoDFT.jl")
+include("TaoDRFT.jl")
+
+end # module Tao
