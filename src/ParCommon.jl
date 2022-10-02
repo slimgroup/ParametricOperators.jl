@@ -1,4 +1,4 @@
-export Optional, TaoException
+export Optional, ParException
 
 macro typeflag(typename, typevalues...)
     exprs = [:(abstract type $typename end)]
@@ -11,11 +11,14 @@ end
 const Optional{T} = Union{T, Nothing}
 const ID = Union{UUID, String}
 
-struct TaoException <: Exception
+struct ParException <: Exception
     msg::String
 end
 
-dims_compatible(::Nothing, ::Nothing) = true
-dims_compatible(::Nothing, ::Integer) = true
-dims_compatible(::Integer, ::Nothing) = true
-dims_compatible(d1::Integer, d2::Integer) = d1 == d2
+struct LeftRight{T}
+    left::T
+    right::T
+    LeftRight(left::T, right::T) where {T} = new{T}(left, right)
+end
+
+swap(lr::LeftRight) = LeftRight(lr.right, lr.left)

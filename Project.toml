@@ -1,4 +1,4 @@
-name = "Tao"
+name = "ParametricOperators"
 uuid = "5c5adbba-ed90-455e-8ba9-f025014c1c3c"
 authors = ["Thomas Grady <tgrady@gatech.edu>"]
 version = "0.1.0"
