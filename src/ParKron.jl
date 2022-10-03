@@ -1,7 +1,5 @@
 export ParKron, ⊗
 
-using Profile
-
 struct ParKron{D,R,P,F} <: ParLinearOperator{D,R,P,Internal}
     ops::F
     m::Int64
@@ -80,170 +78,35 @@ end
 (A::ParKron{D,R,Parametric,F})(θ::AbstractVector{<:Number}) where {D,R,F} =
     ParKron([i ∈ A.slots ? op(θ[range]) : op for (i, (op, range)) in enumerate(zip(A.ops, A.ranges))]...)
 
-# TODO: This is still very slow on GPU... need to rewrite as a proper CUDA kernel
-function (K::ParKron{D,R,<:Applicable,F})(x::X, config::Optional{RuleConfig} = nothing) where {D,R,F,X<:AbstractVector{D}}
-
-    # Compute the intermediate shapes and types from applying K in its
-    # given order
-    shapes = [K.shape_in]
-    types = [DDT(K.ops[K.order[1]])]
-    N = length(K.shape_in)
-    for (k, i) in enumerate(K.order)
+function (K::ParKron{D,R,<:Applicable,F})(x::X) where {D,R,F,X<:AbstractVector{D}}
+    y = reshape(x, K.shape_in...)
+    N = length(size(y))
+    for i in K.order
         Ai = K.ops[i]
-        s = copy(shapes[k])
-        s[N-i+1] = Range(Ai)
-        push!(shapes, s)
-        push!(types, RDT(Ai))
+        y = mapslices(Ai, y, dims=N-i+1)
     end
-
-    # Allocate left/right buffers for application of each operator in K. These
-    # buffers are stored as raw bytes to allow for datatype reinterpretation at
-    # runtime.
-    bytes = [sizeof(T)*prod(s) for (T, s) in zip(types, shapes)]
-    max_bytes = maximum(bytes)
-    vecs = typeof(x) <: CuArray ?
-        LeftRight(CUDA.zeros(UInt8, max_bytes), CUDA.zeros(UInt8, max_bytes)) :
-        LeftRight(zeros(UInt8, max_bytes), zeros(UInt8, max_bytes))
-    copyto!(vecs.right, reinterpret(UInt8, x))
-    
-    for (k, i) in enumerate(K.order)
-
-        # Swap left/right pointers
-        vecs = swap(vecs)
-
-        s_in  = shapes[k]
-        s_out = shapes[k+1]
-        T_in  = types[k]
-        T_out = types[k+1]
-
-        l_buf = @view reinterpret(T_in, vecs.left)[1:prod(s_in)]
-        r_buf = @view reinterpret(T_out, vecs.right)[1:prod(s_out)]
-        l_buf = reshape(l_buf, s_in...)
-        r_buf = reshape(r_buf, s_out...)
-
-        # Create cartesian index iterators for dimensions above/below d
-        # (the dimension over which Aᵢ is applied)
-        d = N-i+1
-        idxs_lower_in  = CartesianIndices(Tuple(s_in[1:d-1]))
-        idxs_upper_in  = CartesianIndices(Tuple(s_in[d+1:N]))
-        idxs_lower_out = CartesianIndices(Tuple(s_out[1:d-1]))
-        idxs_upper_out = CartesianIndices(Tuple(s_out[d+1:N]))
-        
-        # Non-allocating variant of mapslices() that uses the above left/right
-        # data structure.
-        if isnothing(config)
-            Ai = K.ops[i]
-            Profile.Allocs.@profile for (li, lo) in zip(idxs_lower_in, idxs_lower_out)
-                for (ui, uo) in zip(idxs_upper_in, idxs_upper_out)
-                    r_buf[lo,:,uo] = Ai*l_buf[li,:,ui]
-                end
-            end
-        else
-            rule = nothing
-            for (li, lo) in zip(idxs_lower_in, idxs_lower_out)
-                for (ui, uo) in zip(idxs_upper_in, idxs_upper_out)
-                    rule = isnothing(rule) ? rrule_via_ad(config, Ai, *, l_buf[li,:,ui]) : rule
-                    _, r_buf[lo,:,uo] = rule(l_buf[li,:,ui])
-                end
-            end
-        end
-    end
-
-    out = reinterpret(R, vecs.right)
-    return @view out[1:Range(K)]
+    return vec(y)
 end
 
-# TODO: This is still very slow on GPU... need to rewrite as a proper CUDA kernel
-function (K::ParKron{D,R,<:Applicable,F})(x::X, config::Optional{RuleConfig} = nothing) where {D,R,F,X<:AbstractMatrix{D}}
-
-    # Get the batch size (number of columns) of x
-    bs = size(x)[2]
-
-    # Compute the intermediate shapes and types from applying K in its
-    # given order
-    shapes = [K.shape_in]
-    types = [DDT(K.ops[K.order[1]])]
-    N = length(K.shape_in)
-    for (k, i) in enumerate(K.order)
+function kron_pullback(K::ParKron{D,R,<:Applicable,F}, x::X, config::RuleConfig{>:HasReverseMode}) where {D,R,F,X<:AbstractVector{D}}
+    y = reshape(x, K.shape_in...)
+    N = length(size(y))
+    for i in K.order
         Ai = K.ops[i]
-        s = copy(shapes[k])
-        s[N-i+1] = Range(Ai)
-        push!(shapes, s)
-        push!(types, RDT(Ai))
+        rule = nothing
+        y = mapslices(sl -> begin 
+            rule = isnothing(rule) ? rrule_via_ad(config, Ai, sl) : rule
+            _, out = rule(sl)
+            return out
+        end, y, dims=N-i+1)
     end
-
-    # Add batch size to last dim of s
-    shapes = collect(map(s -> [s..., bs], shapes))
-
-    # Allocate left/right buffers for application of each operator in K. These
-    # buffers are stored as raw bytes to allow for datatype reinterpretation at
-    # runtime.
-    bytes = [sizeof(T)*prod(s) for (T, s) in zip(types, shapes)]
-    max_bytes = maximum(bytes)
-    vecs = typeof(x) <: CuArray ?
-        LeftRight(CUDA.zeros(UInt8, max_bytes), CUDA.zeros(UInt8, max_bytes)) :
-        LeftRight(zeros(UInt8, max_bytes), zeros(UInt8, max_bytes))
-    copyto!(vecs.right, reinterpret(UInt8, x))
-    
-    for (k, i) in enumerate(K.order)
-
-        # Swap left/right pointers
-        vecs = swap(vecs)
-
-        s_in  = shapes[k]
-        s_out = shapes[k+1]
-        T_in  = types[k]
-        T_out = types[k+1]
-
-        l_buf = @view reinterpret(T_in, vecs.left)[1:prod(s_in)]
-        r_buf = @view reinterpret(T_out, vecs.right)[1:prod(s_out)]
-        l_buf = reshape(l_buf, s_in...)
-        r_buf = reshape(r_buf, s_out...)
-
-        # Create cartesian index iterators for dimensions above/below d
-        # (the dimension over which Aᵢ is applied)
-        d = N-i+1
-        idxs_lower_in  = CartesianIndices(Tuple(s_in[1:d-1]))
-        idxs_upper_in  = CartesianIndices(Tuple(s_in[d+1:N]))
-        idxs_lower_out = CartesianIndices(Tuple(s_out[1:d-1]))
-        idxs_upper_out = CartesianIndices(Tuple(s_out[d+1:N]))
-        
-        # Non-allocating variant of mapslices() that uses the above left/right
-        # data structure.
-        if isnothing(config)
-            Ai = K.ops[i]
-            for (li, lo) in zip(idxs_lower_in, idxs_lower_out)
-                for (ui, uo) in zip(idxs_upper_in, idxs_upper_out)
-                    r_buf[lo,:,uo,:] = Ai*l_buf[li,:,ui,:]
-                end
-            end
-        else
-            rule = nothing
-            for (li, lo) in zip(idxs_lower_in, idxs_lower_out)
-                for (ui, uo) in zip(idxs_upper_in, idxs_upper_out)
-                    rule = isnothing(rule) ? rrule_via_ad(config, Ai, *, l_buf[li,:,ui]) : rule
-                    _, r_buf[lo,:,uo,:] = rule(l_buf[li,:,ui,:])
-                end
-            end
-        end
-    end
-
-    out = reinterpret(R, vecs.right)
-    return @view out[1:Range(K)]
+    return vec(y)
 end
 
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, K::ParKron{D,R,Parameterized,F}, x::X) where {D,R,F,X<:AbstractVecOrMat{D}}
     y = K(x)
     function pullback(Δy::Y) where {R,Y<:AbstractVector{R}}
-        NoTangent(), @thunk(K'(Δy, config))
-    end
-    y, pullback
-end
-
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, K::ParKron{D,R,Parameterized,F}, x::X) where {D,R,F,X<:CuVecOrMat{D}}
-    y = K(x)
-    function pullback(Δy::Y) where {R,Y<:CuVector{R}}
-        NoTangent(), @thunk(@cuda K'(Δy, config))
+        NoTangent(), @thunk(kron_pullback(K', Δy, config))
     end
     y, pullback
 end

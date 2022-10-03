@@ -16,9 +16,12 @@ init(A::ParMatrix{T}) where {T} = T(1/nparams(A))*rand(T, nparams(A))
 
 (A::ParParameterized{T,T,Linear,ParMatrix{T},V})(x::X) where
     {T,V<:AbstractVector{T},X<:AbstractVector{T}} = reshape(A.θ, A.op.m, A.op.n)*x
+
 (A::ParAdjoint{T,T,Parameterized,ParParameterized{T,T,Linear,ParMatrix{T},V}})(y::Y) where
     {T,V<:AbstractVector{T},Y<:AbstractVector{T}} = reshape(A.op.θ, A.op.op.m, A.op.op.n)'*y
+
 (A::ParParameterized{T,T,Linear,ParMatrix{T},V})(x::X) where
     {T,V<:AbstractVector{T},X<:AbstractMatrix{T}} = reshape(A.θ, A.op.m, A.op.n)*x
+
 (A::ParAdjoint{T,T,Parameterized,ParParameterized{T,T,Linear,ParMatrix{T},V}})(y::Y) where
     {T,V<:AbstractVector{T},Y<:AbstractMatrix{T}} = reshape(A.op.θ, A.op.op.m, A.op.op.n)'*y
