@@ -3,6 +3,7 @@ module ParametricOperators
 import Base: +, -, *, /, ∘
 import Base: adjoint, kron
 
+using CUDA
 using ChainRulesCore
 using FFTW
 using Random: GLOBAL_RNG
