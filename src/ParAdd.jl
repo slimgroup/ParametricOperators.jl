@@ -20,7 +20,8 @@ struct ParAdd{D,R,L,P,F} <: ParOperator{D,R,L,P,Internal}
         starts = offsets .+ 1
         stops = [o+np for (o, np) in zip(offsets, map(nparams, ops))]
         ranges = [start:stop for (start, stop) in zip(starts, stops)]
-        slots = Set(map(tup -> tup[1], filter(tup -> length(tup[2]) > 0, collect(enumerate(ranges)))))
+        N = length(ops)
+        slots = Set([parametricity(ops[i]) == Parametric ? i : -1 for i ∈ 1:N])
         return new{D_out,R_out,L_out,P_out,typeof(ops)}(ops, Range(ops[1]), Domain(ops[1]), ranges, slots, uuid4(GLOBAL_RNG))
     end
 end
@@ -33,7 +34,10 @@ children(A::ParAdd) = A.ops
 id(A::ParAdd) = A.id
 adjoint(A::ParAdd{D,R,Linear,P,F}) where {D,R,P,F} = ParAdd(map(adjoint, A.ops)...)
 
-(A::ParAdd{D,R,L,Parametric,F})(θ::AbstractVector{<:Number}) where {D,R,L,F} =
-    ParAdd([i ∈ A.slots ? op(θ[range]) : op for (i, (op, range)) in enumerate(zip(A.ops, A.ranges))]...)
+function (A::ParAdd{D,R,L,Parametric,F})(θ::AbstractVector{<:Number}) where {D,R,L,F}
+    N = length(A.ranges)
+    ops_out = [i ∈ A.slots ? A.ops[i](θ[A.ranges[i]]) : A.ops[i] for i in 1:N]
+    ParAdd(ops_out...)
+end
 
 (A::ParAdd{D,R,L,P,F})(x::X) where {D,R,L,P<:Applicable,F,X<:AbstractVector{D}} = +(map(op -> op(x), A.ops)...)

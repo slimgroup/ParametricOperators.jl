@@ -38,7 +38,8 @@ struct ParKron{D,R,P,F} <: ParLinearOperator{D,R,P,Internal}
         starts = offsets .+ 1
         stops = [o+np for (o, np) in zip(offsets, map(nparams, ops))]
         ranges = [start:stop for (start, stop) in zip(starts, stops)]
-        slots = Set(map(tup -> tup[1], filter(tup -> length(tup[2]) > 0, collect(enumerate(ranges)))))
+        N = length(ops)
+        slots = Set([parametricity(ops[i]) == Parametric ? i : -1 for i ∈ 1:N])
         return new{D_out,R,P_out,typeof(ops)}(ops, m, n, shape_in, shape_out, order, ranges, slots, uuid4(GLOBAL_RNG))
     end
     function ParKron(D, R, P, ops, m, n, si, so, order, ranges, slots, id)
@@ -75,15 +76,35 @@ function adjoint(A::ParKron{D,R,P,F}) where {D,R,P,F}
     )
 end
 
-(A::ParKron{D,R,Parametric,F})(θ::AbstractVector{<:Number}) where {D,R,F} =
-    ParKron([i ∈ A.slots ? op(θ[range]) : op for (i, (op, range)) in enumerate(zip(A.ops, A.ranges))]...)
+function (A::ParKron{D,R,Parametric,F})(θ::AbstractVector{<:Number}) where {D,R,F}
+    N = length(A.ranges)
+    ops_out = [i ∈ A.slots ? A.ops[i](θ[A.ranges[i]]) : A.ops[i] for i in 1:N]
+    ParKron(ops_out...)
+end
 
 function (K::ParKron{D,R,<:Applicable,F})(x::X) where {D,R,F,X<:AbstractVector{D}}
     y = reshape(x, K.shape_in...)
     N = length(size(y))
     for i in K.order
         Ai = K.ops[i]
+        if is_identity(Ai)
+            continue
+        end
         y = mapslices(Ai, y, dims=N-i+1)
+    end
+    return vec(y)
+end
+
+function (K::ParKron{D,R,<:Applicable,F})(x::X) where {D,R,F,X<:AbstractMatrix{D}}
+    b = size(x)[2]
+    y = reshape(x, K.shape_in..., b)
+    N = length(size(y))
+    for i in K.order
+        Ai = K.ops[i]
+        if is_identity(Ai)
+            continue
+        end
+        y = mapslices(Ai, y, dims=(N-i, N))
     end
     return vec(y)
 end
@@ -93,12 +114,34 @@ function kron_pullback(K::ParKron{D,R,<:Applicable,F}, x::X, config::RuleConfig{
     N = length(size(y))
     for i in K.order
         Ai = K.ops[i]
+        if is_identity(Ai)
+            continue
+        end
         rule = nothing
         y = mapslices(sl -> begin 
             rule = isnothing(rule) ? rrule_via_ad(config, Ai, sl) : rule
             _, out = rule(sl)
             return out
         end, y, dims=N-i+1)
+    end
+    return vec(y)
+end
+
+function kron_pullback(K::ParKron{D,R,<:Applicable,F}, x::X, config::RuleConfig{>:HasReverseMode}) where {D,R,F,X<:AbstractMatrix{D}}
+    b = size(x)[2]
+    y = reshape(x, K.shape_in..., b)
+    N = length(size(y))
+    for i in K.order
+        Ai = K.ops[i]
+        if is_identity(Ai)
+            continue
+        end
+        rule = nothing
+        y = mapslices(sl -> begin 
+            rule = isnothing(rule) ? rrule_via_ad(config, Ai, sl) : rule
+            _, out = rule(sl)
+            return out
+        end, y, dims=(N-i, N))
     end
     return vec(y)
 end

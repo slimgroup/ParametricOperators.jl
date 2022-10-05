@@ -25,3 +25,12 @@ init(A::ParMatrix{T}) where {T} = T(1/nparams(A))*rand(T, nparams(A))
 
 (A::ParAdjoint{T,T,Parameterized,ParParameterized{T,T,Linear,ParMatrix{T},V}})(y::Y) where
     {T,V<:AbstractVector{T},Y<:AbstractMatrix{T}} = reshape(A.op.θ, A.op.op.m, A.op.op.n)'*y
+
+function (K::ParKron{T,T,Parameterized,Tuple{ParIdentity{T},ParMatrix{T}}})(x::X) where {T,X<:AbstractVector{T}}
+    y = reshape(x, K.shape_in...)
+    y = K.ops[1]*y
+    return vec(y)
+end
+
+# TODO: Types
+kron(A::ParLinearOperator, B::ParMatrix{T}) where {T} = ParKron(A, ParIdentity{DDT(A)}(Range(B)))*ParKron(ParIdentity{T}(Domain(A)), B)

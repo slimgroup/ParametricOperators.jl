@@ -33,6 +33,7 @@ adjoint(A::ParAdjoint) = A.op
 (A::ParAdjoint{D,R,Parametric,F})(θ::AbstractVector{<:Number}) where {D,R,F} = ParAdjoint(A.op(θ))
 
 *(A::ParOperator{D,R,Linear,<:Applicable,T}, x::X) where {D,R,T,X<:AbstractVecOrMat{D}} = A(x)
+(A::ParOperator{D,R,L,Parametric,T})(x::X, θ::V) where {D,R,L,T,X<:AbstractVecOrMat{D},V<:AbstractVector} = A(θ)(x)
 (A::ParOperator{D,R,L,<:Applicable,T})(x::X) where {D,R,L,T,X<:AbstractMatrix{D}} =
     mapreduce(A, hcat, eachcol(x))
 

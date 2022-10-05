@@ -72,11 +72,11 @@ function (A::ParAdjoint{T,T,NonParametric,ParMultiRestriction{T,N}})(y::Y) where
     for (ri, ro) in zip(R.ranges_in, R.ranges_out)
         vec(@view x[ri...]) .= y[ro]
     end
-    return x
+    return vec(x)
 end
 
 function kron(R1::ParRestriction{T}, R2::ParRestriction{T}) where {T}
-    ranges_in = vec(collect(Iterators.product(R1.ranges_in, R2.ranges_in)))
+    ranges_in = vec(collect(Iterators.product(R2.ranges_in, R1.ranges_in)))
     ls = collect(map(r -> prod(map(length, r)), ranges_in))
     offsets = [0, cumsum(ls[2:end])...]
     starts = offsets .+ 1
@@ -93,9 +93,35 @@ function kron(R1::ParRestriction{T}, R2::ParRestriction{T}) where {T}
 end
 
 function kron(R1::ParRestriction{T}, R2::ParMultiRestriction{T,N}) where {T,N}
-
+    ranges_in = vec(collect(map(tup -> (tup[2]..., tup[1]), Iterators.product(R1.ranges_in, R2.ranges_in))))
+    ls = collect(map(r -> prod(map(length, r)), ranges_in))
+    offsets = [0, cumsum(ls[2:end])...]
+    starts = offsets .+ 1
+    stops = offsets .+ ls
+    ranges_out = [start:stop for (start, stop) in zip(starts, stops)]
+    return ParMultiRestriction{T,N+1}(
+        sum(ls),
+        R1.n*R2.n,
+        (R2.shape..., R1.n),
+        ranges_in,
+        ranges_out,
+        uuid4(GLOBAL_RNG)
+    )
 end
 
 function kron(R1::ParMultiRestriction{T,N}, R2::ParRestriction{T}) where {T,N}
-    
+    ranges_in = vec(collect(map(tup -> (tup[1], tup[2]...), Iterators.product(R1.ranges_in, R2.ranges_in))))
+    ls = collect(map(r -> prod(map(length, r)), ranges_in))
+    offsets = [0, cumsum(ls[2:end])...]
+    starts = offsets .+ 1
+    stops = offsets .+ ls
+    ranges_out = [start:stop for (start, stop) in zip(starts, stops)]
+    return ParMultiRestriction{T,N+1}(
+        sum(ls),
+        R1.n*R2.n,
+        (R2.n, R1.shape...),
+        ranges_in,
+        ranges_out,
+        uuid4(GLOBAL_RNG)
+    )
 end
