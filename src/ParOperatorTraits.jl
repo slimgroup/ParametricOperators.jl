@@ -1,46 +1,52 @@
-export linearity, parametricity
-export DDT, RDT, Domain, Range, nparams, children, id, init
-
-linearity(::ParOperator{D,R,L,P,T}) where {D,R,L,P,T} = L
-parametricity(::ParOperator{D,R,L,P,T}) where {D,R,L,P,T} = P
+export DDT, RDT, linearity, parametricity, ast_location
+export Domain, Range, nparams, children, init, id, optimize
 
 DDT(::ParOperator{D,R,L,P,T}) where {D,R,L,P,T} = D
 RDT(::ParOperator{D,R,L,P,T}) where {D,R,L,P,T} = R
+linearity(::ParOperator{D,R,L,P,T}) where {D,R,L,P,T} = L
+parametricity(::ParOperator{D,R,L,P,T}) where {D,R,L,P,T} = P
+ast_location(::ParOperator{D,R,L,P,T}) where {D,R,L,P,T} = T
 
-Domain(A::ParAdjoint) = Range(A.op)
-Domain(A::ParParameterized) = Domain(A.op)
+#Domain(F::ParOperator)   = throw(ParException("Domain() is not implemented for $(typeof(F))"))
+#Range(F::ParOperator)    = throw(ParException("Range() is not implemented for $(typeof(F))"))
+#nparams(F::ParOperator)  = throw(ParException("nparams() is not implemented for $(typeof(F))"))
+#children(F::ParOperator) = throw(ParException("children() is not implemented for $(typeof(F))"))
+#init(F::ParOperator)     = throw(ParException("init() is not implemented for $(typeof(F))"))
+#id(F::ParOperator)       = throw(ParException("id() is not implemented for $(typeof(F))"))
 
-Range(A::ParAdjoint) = Domain(A.op)
-Range(A::ParParameterized) = Range(A.op)
+Domain(::ParOperator{Nothing,R,L,P,T}) where {R,L,P,T} = nothing
+Range(::ParOperator{D,Nothing,L,P,T}) where {D,L,P,T} = nothing
 
-nparams(::ParOperator{D,R,L,NonParametric,T}) where {D,R,L,T} = 0
-nparams(A::ParOperator{D,R,L,P,Internal}) where {D,R,L,P<:Union{Parametric,Parameterized}} = sum(map(nparams, children(A)))
+children(::ParOperator{D,R,L,NonParametric,T}) where {D,R,L,T} = Vector{ParOperator}()
 
-children(::ParOperator{D,R,L,P,External}) where {D,R,L,P} = []
-children(A::ParAdjoint) = [A.op]
-children(A::ParParameterized) = [A.op]
+nparams(F::ParOperator{D,R,L,NonParametric,T}) where {D,R,L,T} = 0
+nparams(F::ParOperator{D,R,L,Parametric,Internal}) where {D,R,L} = sum(map(nparams, children(F)))
 
-id(A::ParAdjoint) = "adjoint_[$(id(A.op))]"
-id(A::ParParameterized) = "parameterized_[$(id(A.op))]"
+params(F::ParOperator{D,R,L,NonParametric,T}) where {D,R,L,T} = []
+params(F::ParOperator{D,R,L,Parametric,T}) where {D,R,L,T} = []
+params(F::ParOperator{D,R,L,Parameterized,Internal}) where {D,R,L} =
+    MultiTypeVector(Number, map(init, Iterators.filter(v -> parametricity(v) == Parameterized, children(F))))
 
-init(::ParOperator{D,R,L,NonParametric,T}) where {D,R,L,T} = []
-init(A::ParOperator{D,R,L,Parametric,Internal}) where {D,R,L} = vcat(map(init, filter(op -> parametricity(op) == Parametric, children(A)))...)
+init(::ParOperator{D,R,L,NonParametric,T}) where {D,R,L,T} = Vector{Number}()
+init(F::ParOperator{D,R,L,Parametric,Internal}) where {D,R,L} =
+    MultiTypeVector(Number, map(init, Iterators.filter(v -> parametricity(v) == Parametric, children(F)))...)
 
-adjoint(A::ParOperator{D,R,Linear,P,T}) where {D,R,P,T} = ParAdjoint(A)
-adjoint(A::ParAdjoint) = A.op
+(F::ParOperator{D,R,L,P,T})(::X) where {D,R,L,P<:Applicable,T,X<:AbstractVector{D}} =
+    throw(ParException("F(x) is not implemented for $(typeof(F))"))
 
-(A::ParOperator{D,R,L,Parametric,External})(θ::AbstractVector{<:Number}) where {D,R,L} = ParParameterized(A, θ)
-(A::ParAdjoint{D,R,Parametric,F})(θ::AbstractVector{<:Number}) where {D,R,F} = ParAdjoint(A.op(θ))
-
-*(A::ParOperator{D,R,Linear,<:Applicable,T}, x::X) where {D,R,T,X<:AbstractVecOrMat{D}} = A(x)
-(A::ParOperator{D,R,L,Parametric,T})(x::X, θ::V) where {D,R,L,T,X<:AbstractVecOrMat{D},V<:AbstractVector} = A(θ)(x)
-(A::ParOperator{D,R,L,<:Applicable,T})(x::X) where {D,R,L,T,X<:AbstractMatrix{D}} =
-    mapreduce(A, hcat, eachcol(x))
-
-function ChainRulesCore.rrule(A::F, x::X) where {D,R,T,F<:ParOperator{D,R,Linear,NonParametric,T},X<:AbstractVecOrMat{D}}
-    y = A(x)
-    function pullback(Δy)
-        return NoTangent(), @thunk(A'(Δy))
-    end
-    return y, pullback
+function (A::ParOperator{D,R,L,P,T})(x::X) where {D,R,L,P<:Applicable,T,X<:AbstractMatrix{D}}
+    nc = size(x)[2]
+    cols = [x[:,i] for i in 1:nc]
+    return reduce(hcat, broadcast(A, cols))
 end
+
+(F::ParOperator{D,R,L,Parametric,T})(x::X, θ) where {D,R,L,T,X<:AbstractVecOrMat{D}} = F(θ)(x)
+*(A::ParOperator{D,R,Linear,P,T}, x::X) where {D,R,P<:Applicable,T,X<:AbstractVecOrMat{D}} = A(x)
+
+function *(x::X, A::ParLinearOperator{D,R,P,T}) where {D,R,P<:Applicable,T,X<:AbstractMatrix{D}}
+    nr = size(x)[1]
+    rows = [x[i,:] for i in 1:nr]
+    return reduce(vcat, broadcast(r -> transpose(A*r), rows))
+end
+
+optimize(F::ParOperator) = F

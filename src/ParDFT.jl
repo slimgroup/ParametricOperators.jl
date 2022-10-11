@@ -1,87 +1,48 @@
-export ParDFT, ParDFTN, ParDRFT
+export ParDFT, ParDFTN
 
 struct ParDFT{T<:Complex} <: ParLinearOperator{T,T,NonParametric,External}
     n::Int64
     id::ID
+    ParDFT(n; T = ComplexF64) = new{T}(n, uuid4(GLOBAL_RNG))
 end
 
-ParDFT{T}(n::Int64) where {T<:Complex} = ParDFT{T}(n, uuid4(GLOBAL_RNG))
+Domain(A::ParDFT) = A.n
+Range(A::ParDFT) = A.n
+id(A::ParDFT) = A.id
 
-Domain(F::ParDFT) = F.n
-Range(F::ParDFT) = F.n
-id(F::ParDFT) = F.id
+(A::ParDFT{T})(x::X) where {T<:Complex,X<:AbstractVector{T}} = fft(x)./T(sqrt(A.n))
+(A::ParAdjoint{T,T,NonParametric,ParDFT{T}})(x::X) where {T<:Complex,X<:AbstractVector{T}} = ifft(x).*T(sqrt(A.op.n))
 
-(F::ParDFT{T})(x::X) where {T<:Complex,X<:AbstractVector{T}} = fft(x)/T(sqrt(F.n))
-(F::ParAdjoint{T,T,NonParametric,ParDFT{T}})(y::Y) where {T<:Complex,Y<:AbstractVector{T}} = ifft(y)*T(sqrt(F.op.n))
-
-struct ParDFTN{T<:Complex,N,M} <: ParLinearOperator{T,T,NonParametric,External}
-    shape::NTuple{N,Int64}
-    dims::NTuple{M,Int64}
-    n::Int64
-    scale::T
-    id::ID
-end
-
-ParDFTN{T}(shape::NTuple{N,Int64}) where {T<:Complex,N} =
-    ParDFTN{T,N,N}(
-        shape,
-        Tuple(1:N),
-        prod(shape),
-        T(sqrt(prod(shape))),
-        uuid4(GLOBAL_RNG)
-    )
-
-ParDFTN{T}(shape::NTuple{N,Int64}, dims::NTuple{M,Int64}) where {T<:Complex,N,M} =
-    ParDFTN{T,N,M}(
-        shape,
-        dims,
-        prod(shape),
-        sqrt(prod([shape[d] for d in dims])),
-        uuid4(GLOBAL_RNG)
-    )
-
-Domain(F::ParDFTN) = F.n
-Range(F::ParDFTN) = F.n
-id(F::ParDFTN) = F.id
-
-function (F::ParDFTN{T,M,N})(x::X) where {T<:Complex,M,N,X<:AbstractVector{T}}
-    y = reshape(x, F.shape)
-    y = fft(y, F.dims)/F.scale
-    return vec(y)
-end
-
-function (A::ParAdjoint{T,T,NonParametric,ParDFTN{T,M,N}})(y::Y) where {T<:Complex,M,N,Y<:AbstractVector{T}}
-    F = A.op
-    x = reshape(y, F.shape)
-    x = ifft(x, F.dims)*F.scale
-    return vec(x)
-end
-
-kron(F1::ParDFT{T}, F2::ParDFT{T}) where {T<:Complex} = ParDFTN{T}((F2.n, F1.n))
-kron(F1::ParDFT{T}, F2::ParDFTN{T,M,N}) where {T<:Complex,M,N} = ParDFTN{T}((F2.shape..., F1.n), (F2.dims..., N+1))
-kron(F1::ParDFTN{T,M,N}, F2::ParDFT{T}) where {T<:Complex,M,N} = ParDFTN{T}((F2.n, F1.shape...), (1, (F1.dims.+1)...))
-kron(F1::ParDFTN{T,K,L}, F2::ParDFTN{T,M,N}) where {T<:Complex,K,L,M,N} = ParDFTN{T}((F2.shape..., F1.shape...), (F2.dims..., (F1.dims.+N)...))
-
-struct ParDRFT{T<:Real} <: ParOperator{T,Complex{T},Linear,NonParametric,External}
-    m::Int64
+struct ParDFTN{N,K,T<:Complex} <: ParLinearOperator{T,T,NonParametric,External}
+    shape::NTuple{N, Int64}
+    dims::NTuple{K, Int64}
     n::Int64
     id::ID
+    ParDFTN(ns...; T = ComplexF64) = new{length(ns),length(ns),T}(
+        ns, 
+        Tuple(1:length(ns)),
+        prod(ns),
+        uuid4(GLOBAL_RNG)
+    )
 end
 
-ParDRFT{T}(n::Int64) where {T<:Real} = ParDRFT{T}(n÷2+1, n, uuid4(GLOBAL_RNG))
+Domain(A::ParDFTN) = A.n
+Range(A::ParDFTN) = A.n
+id(A::ParDFTN) = A.id
 
-Domain(F::ParDRFT) = F.n
-Range(F::ParDRFT) = F.m
-id(F::ParDRFT) = F.id
-
-function (F::ParDRFT{T})(x::X) where {T<:Real,X<:AbstractVector{T}}
-    y = fft(x)/Complex{T}(sqrt(F.n))
-    return y[1:F.m]
+function (A::ParDFTN{N,K,T})(x::X) where {N,K,T<:Complex,X<:AbstractVector{T}}
+    xr = reshape(x, A.shape)
+    yr = fft(xr, A.dims)./T(sqrt(A.n))
+    return vec(yr)
 end
 
-function (A::ParAdjoint{T,Complex{T},NonParametric,ParDRFT{T}})(y::Y) where {T<:Real,Y<:AbstractVector{Complex{T}}}
-    F = A.op
-    k = iseven(F.m) ? F.m : F.m-1
-    x = vcat(y, conj(y[k:-1:2]))
-    return real(ifft(x)*T(sqrt(F.n)))
+function (A::ParAdjoint{T,T,NonParametric,ParDFTN{N,K,T}})(y::Y) where {N,K,T<:Complex,Y<:AbstractVector{T}}
+    yr = reshape(y, A.op.shape)
+    xr = ifft(yr, A.op.dims).*T(sqrt(A.op.n))
+    return vec(xr)
 end
+
+optimize(A::ParKron{T,T,NonParametric,ParDFT{T},ParDFT{T}}) where {T<:Complex} = ParDFTN(A.rhs.n, A.lhs.n; T=T)
+optimize(A::ParKron{T,T,NonParametric,ParDFT{T},ParDFTN{N,K,T}}) where {N,K,T<:Complex} = ParDFTN(A.rhs.shape..., A.lhs.n; T=T)
+optimize(A::ParKron{T,T,NonParametric,ParDFTN{N,K,T},ParDFT{T}}) where {N,K,T<:Complex} = ParDFTN(A.rhs.n, A.lhs.shape...; T=T)
+optimize(A::ParKron{T,T,NonParametric,ParDFTN{M,K,T},ParDFTN{N,L,T}}) where {M,K,N,L,T<:Complex} = ParDFTN(A.rhs.shape..., A.lhs.shape...; T=T)
