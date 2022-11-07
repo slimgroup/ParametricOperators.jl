@@ -1,37 +1,38 @@
 export ParAdd
 
-struct ParAdd{D,R,L,P,F} <: ParOperator{D,R,L,P,Internal}
+promote_optype_add(::Nothing, ::Nothing) = Nothing
+promote_optype_add(::Type{T}, ::Nothing) where {T} = T
+promote_optype_add(::Nothing, ::Type{T}) where {T} = T
+promote_optype_add(::Type{T}, ::Type{T}) where {T} = T
+
+struct ParAdd{D,R,L,P,F} <: ParOperator{D,R,L,P,HigherOrder}
     ops::F
     m::Int64
     n::Int64
-    slots::Optional{Set{Int64}}
-    ranges::Optional{Vector{UnitRange{Int64}}}
+    slots::Vector{Int64}
+    ranges::Vector{UnitRange{Int64}}
     id::ID
-    function ParAdd(ops::ParOperator...)
+    function ParAdd(ops)
 
-        D = foldl(promote_optype, map(DDT, ops); init = Nothing)
-        R = foldl(promote_optype, map(RDT, ops); init = Nothing)
-        m = foldl(promote_opdim, map(Range, ops); init = nothing)
-        n = foldl(promote_opdim, map(Domain, ops); init = nothing)
+        D = foldr(promote_optype_add, map(DDT, ops); init=Nothing)
+        R = foldl(promote_optype_add, map(RDT, ops); init=Nothing)
+        L = foldl(promote_linearity, map(linearity, ops); init=Linear)
+        P = foldl(promote_parametricity, map(parametricity, ops); init=NonParametric)
 
-        L = foldl(promote_linearity, map(linearity, ops); init = Linear)
-        P = foldl(promote_parametricity, map(parametricity, ops); init = NonParametric)
+        m = foldl(promote_opdim, map(Range, ops))
+        n = foldr(promote_opdim, map(Domain, ops))
 
-        if P <: Applicable
-            return new{D,R,L,P,typeof(ops)}(ops, m, n, nothing, nothing, uuid4(GLOBAL_RNG))
-        else
-            pop_tups = Iterators.filter(tup -> parametricity(tup[2]) == Parametric, enumerate(ops))
-            slots = Set(map(tup -> tup[1], pop_tups))
+        slots = collect(map(first, filter(t -> nparams(second(t)) > 0, enumerate(ops))))
+        nps = collect(map(nparams, ops[slots]))
+        offsets = [0, cumsum(nps[1:end-1])...]
+        starts = offsets .+ 1
+        stops = offsets .+ nps
+        ranges = [start:stop for (start, stop) in (starts, stops)]
 
-            nps = collect(map(tup -> nparams(tup[2]), pop_tups))
-            offsets = [0, cumsum(nps[1:end-1])...]
-            starts = offsets .+ 1
-            stops = offsets .+ nps
-            ranges = [start:stop for (start, stop) in zip(starts, stops)]
-    
-            return new{D,R,L,P,typeof(ops)}(ops, m, n, slots, ranges, uuid4(GLOBAL_RNG))
-        end
+        return new{D,R,L,P,typeof(ops)}(ops, m, n, slots, ranges, uuid4(GLOBAL_RNG))
+
     end
+    ParAdd(ops...) = ParAdd(collect(ops))
 end
 
 +(ops::ParOperator...) = ParAdd(ops...)
@@ -41,10 +42,6 @@ Range(A::ParAdd) = A.m
 children(A::ParAdd) = A.ops
 id(A::ParAdd) = A.id
 
-adjoint(A::ParAdd{D,R,Linear,P,F}) where {D,R,P,F} = ParAdd(map(adjoint, A.ops)...)
-
-(A::ParAdd{D,R,L,Parametric,F})(θ) where {D,R,L,F} =
-    ParAdd([i ∈ A.slots ? A.ops[i](@view θ[A.ranges[i]]) : A.ops[i] for i in 1:length(A.ops)]...)
-
-(A::ParAdd{D,R,L,P,F})(x::X) where {D,R,L,P<:Applicable,F,X<:AbstractVector{D}} = +([op(x) for op in A.ops]...)
-(A::ParAdd{D,R,L,P,F})(x::X) where {D,R,L,P<:Applicable,F,X<:AbstractMatrix{D}} = +([op(x) for op in A.ops]...)
+function (A::ParAdd{D,R,L,Parametric,F})(θ) where {D,R,L,F}
+    ops_out
+end
