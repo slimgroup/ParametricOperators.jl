@@ -33,7 +33,7 @@ multitype_vcat(xs::AbstractVector...) = MultiTypeVector(xs...)
 extract_vecs(v::AbstractVector)  = [v]
 extract_vecs(v::MultiTypeVector) = v.vecs
 
-function optional_multitype_vcat(xs::AbstractVector...)
+function optional_multitype_vcat(xs::Option{AbstractVector}...)
     vs = Iterators.flatten(map(extract_vecs, Iterators.filter(x -> !isnothing(x), xs)))
     return multitype_vcat(vs...)
 end

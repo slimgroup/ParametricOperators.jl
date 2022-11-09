@@ -1,9 +1,9 @@
 export ParParameterized
 
-struct ParParameterized{D,R,L,P,F,V} <: ParOperator{D,R,L,P,HigherOrder}
+struct ParParameterized{D,R,L,F,V} <: ParOperator{D,R,L,Parameterized,HigherOrder}
     op::F
     θ::V
-    ParParameterized(op, θ) = new{DDT(op),RDT(op),linearity(op),parametricity(op),typeof(op),typeof(θ)}(op, θ)
+    ParParameterized(op, θ) = new{DDT(op),RDT(op),linearity(op),typeof(op),typeof(θ)}(op, θ)
 end
 
 Domain(A::ParParameterized) = Domain(A.op)
