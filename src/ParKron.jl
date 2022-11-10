@@ -1,4 +1,4 @@
-export ParSeparableOperator, ParKron, ⊗
+export ParSeparableOperator, ParKron, ⊗, decomposition
 
 abstract type ParSeparableOperator{D,R,P,O} <: ParLinearOperator{D,R,P,O} end
 
@@ -8,7 +8,11 @@ subspace_type(::Type{T}, ::Type{T}) where {T} = T
 subspace_type(::Type{T}, ::Type{Complex{T}}) where {T<:Real} = T
 subspace_type(::Type{Complex{T}}, ::Type{T}) where {T<:Real} = T
 
-mutable struct ParKron{D,R,P,F,N} <: ParSeparableOperator{D,R,P,HigherOrder}
+superspace_type(::Type{T}, ::Type{T}) where {T} = T
+superspace_type(::Type{T}, ::Type{Complex{T}}) where {T<:Real} = Complex{T}
+superspace_type(::Type{Complex{T}}, ::Type{T}) where {T<:Real} = Complex{T}
+
+struct ParKron{D,R,P,F,N} <: ParSeparableOperator{D,R,P,HigherOrder}
     ops::F
     m::Int64
     n::Int64
@@ -16,7 +20,6 @@ mutable struct ParKron{D,R,P,F,N} <: ParSeparableOperator{D,R,P,HigherOrder}
     perms::Vector{NTuple{N, Int64}}
     shapes::Vector{NTuple{N, Int64}}
     ranges::Vector{Option{UnitRange{Int64}}}
-    buf::Option{<:AbstractVector{UInt8}}
     id::ID
 
     function ParKron(ops)
@@ -36,9 +39,10 @@ mutable struct ParKron{D,R,P,F,N} <: ParSeparableOperator{D,R,P,HigherOrder}
         for i ∈ 1:N
             js = filter(j -> j ∉ order, findall(Ds .== T))
             Rs_i = Rs[js]
-            R = reduce(subspace_type, Rs_i)
+            R = reduce(superspace_type, Rs_i)
             j = js[findlast(Rs_i .== R)]
             order[i] = j
+            T = R
         end
 
         # From the order, compute intermediate shapes
@@ -50,7 +54,8 @@ mutable struct ParKron{D,R,P,F,N} <: ParSeparableOperator{D,R,P,HigherOrder}
         shifts[N+1] = N-order[N]
 
         shapes = Vector{NTuple{N, Int64}}(undef, N+1)
-        shapes[1] = ntuple(j -> Domain(ops[N-j+1]), N)
+        shape = collect(map(j -> Domain(ops[N-j+1]), 1:N))
+        shapes[1] = Tuple(circshift(shape, shifts[1]))
 
         for i ∈ 1:N
             o = order[i]
@@ -75,25 +80,17 @@ mutable struct ParKron{D,R,P,F,N} <: ParSeparableOperator{D,R,P,HigherOrder}
         ranges = [start:stop for (start, stop) in zip(starts, stops)]
         ranges = collect(map(r -> length(r) == 0 ? nothing : r, ranges))
 
-        max_bytes = 0
-        for i ∈ 1:N
-            b1 = prod(shapes[i])*sizeof(DDT(ops[order[i]]))
-            b2 = prod(shapes[i+1])*sizeof(RDT(ops[order[i]]))
-            max_bytes = max(max_bytes, b1, b2)
-        end
-        buf = nothing #zeros(UInt8, max_bytes)
-
-        return new{D,R,P,typeof(ops),N}(ops, m, n, order, perms, shapes, ranges, buf, uuid4(GLOBAL_RNG))
+        return new{D,R,P,typeof(ops),N}(ops, m, n, order, perms, shapes, ranges, uuid4(GLOBAL_RNG))
     end
 
-    ParKron(D,R,P,ops,m,n,order,perms,shapes,ranges,buf,id) =
-        new{D,R,P,typeof(ops),length(ops)}(ops,m,n,order,perms,shapes,ranges,buf,id)
+    ParKron(D,R,P,ops,m,n,order,perms,shapes,ranges,id) =
+        new{D,R,P,typeof(ops),length(ops)}(ops,m,n,order,perms,shapes,ranges,id)
 end
 
 kron(A::ParLinearOperator, B::ParLinearOperator) = ParKron([A, B])
-kron(A::ParLinearOperator, B::ParSeparableOperator) = ParKron(vcat(A, decomposition(B)))
-kron(A::ParSeparableOperator, B::ParLinearOperator) = ParKron(vcat(decomposition(A), B))
-kron(A::ParSeparableOperator, B::ParSeparableOperator) = ParKron(vcat(decomposition(A), decomposition(B)))
+kron(A::ParLinearOperator, B::ParKron) = ParKron(vcat(A, decomposition(B)))
+kron(A::ParKron, B::ParLinearOperator) = ParKron(vcat(decomposition(A), B))
+kron(A::ParKron, B::ParKron) = ParKron(vcat(decomposition(A), decomposition(B)))
 
 ⊗(A::ParLinearOperator, B::ParLinearOperator) = kron(A, B)
 
@@ -102,28 +99,11 @@ Range(A::ParKron) = A.m
 children(A::ParKron) = A.ops
 id(A::ParKron) = A.id
 
+adjoint(A::ParKron) = ParKron(collect(map(adjoint, decomposition(A))))
+
 function (A::ParKron{D,R,Parametric,F,N})(θ::V) where {D,R,F,N,V}
     ops_out = [isnothing(r) ? op : op(view(θ, r)) for (op, r) in zip(A.ops, A.ranges)]
-    return ParKron(D,R,Parameterized,ops_out,A.m,A.n,A.order,A.perms,A.shapes,A.ranges,A.buf,A.id)
-end
-
-function permutedims_noalloc!(dest::U, src::V, perm) where {T,U<:AbstractArray{T},V<:AbstractArray{T}}
-    permutedims!(dest, src, perm)
-    return dest
-end
-
-function ChainRulesCore.rrule(::typeof(permutedims_noalloc!), dest::U, src::V, perm) where {T,U<:AbstractArray{T},V<:AbstractArray{T}}
-    y = permutedims_noalloc!(dest, src, perm)
-    function pullback(∂y)
-        N = length(perm)
-        permᵀ = zeros(Int64, N)
-        for i ∈ 1:N
-            permᵀ[perm[i]] = i
-        end
-        ∂x = permutedims_noalloc!(src, ∂y, permᵀ)
-        return NoTangent(), NoTangent(), ∂x, NoTangent()
-    end
-    return y, pullback
+    return ParKron(D,R,Parameterized,ops_out,A.m,A.n,A.order,A.perms,A.shapes,A.ranges,A.id)
 end
 
 function (A::ParKron{D,R,P,F,N})(x::X) where {D,R,P<:Applicable,F,N,X<:AbstractVector{D}}
@@ -132,16 +112,12 @@ function (A::ParKron{D,R,P,F,N})(x::X) where {D,R,P<:Applicable,F,N,X<:AbstractV
     for i ∈ 1:N
         o = A.order[i]
         Ai = A.ops[o]
-        #dest_i = reshape(view(reinterpret(DDT(Ai), A.buf), 1:length(y)), A.shapes[i])
-        #y = permutedims_noalloc!(dest_i, y, A.perms[i]) #TODO: make this work
         y = permutedims(y, A.perms[i])
         s = size(y)
         y = reshape(y, Domain(Ai), length(y)÷Domain(Ai))
         y = Ai*y
         y = reshape(y, Range(Ai), s[2:end]...)
     end
-    #dest_i = reshape(view(reinterpret(RDT(A.ops[A.order[N]]), A.buf), 1:length(y)), A.shapes[N+1])
-    #y = permutedims_noalloc!(dest_i, y, A.perms[N+1])
     y = permutedims(y, A.perms[N+1])
     return vec(copy(y))
 

@@ -30,7 +30,7 @@ function init end
 children(::ParOperator{D,R,L,P,FirstOrder}) where {D,R,L,P} = nothing
 
 nparams(A::ParOperator{D,R,L,P,O}) where {D,R,L,P<:Applicable,O} = 0
-nparams(A::ParOperator{D,R,L,Parametric,HigherOrder}) where {D,R,L} = mapreduce(nparams, sum, children(A))
+nparams(A::ParOperator{D,R,L,Parametric,HigherOrder}) where {D,R,L} = mapreduce(nparams, +, children(A))
 
 init(::ParOperator{D,R,L,P,O}) where {D,R,L,P<:Applicable,O} = nothing
 init(A::ParOperator{D,R,L,Parametric,HigherOrder}) where {D,R,L} = optional_multitype_vcat(map(init, children(A))...)

@@ -39,6 +39,7 @@ function optional_multitype_vcat(xs::Option{AbstractVector}...)
 end
 
 size(x::MultiTypeVector) = (mapreduce(length, +, x.vecs),)
+CUDA.CuArray(x::MultiTypeVector) = MultiTypeVector(map(CUDA.CuArray, x.vecs)...)
 
 IndexStyle(::MultiTypeVector) = IndexLinear()
 
