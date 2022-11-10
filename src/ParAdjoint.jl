@@ -8,6 +8,7 @@ end
 Domain(A::ParAdjoint) = Range(A.op)
 Range(A::ParAdjoint) = Domain(A.op)
 children(A::ParAdjoint) = [A.op]
+children_symbol(::ParAdjoint) = :op
 id(A::ParAdjoint) = "adjoint_$(id(A.op))"
 
 adjoint(A::ParLinearOperator) = ParAdjoint(A)

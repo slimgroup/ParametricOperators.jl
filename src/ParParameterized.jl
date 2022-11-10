@@ -9,6 +9,7 @@ end
 Domain(A::ParParameterized) = Domain(A.op)
 Range(A::ParParameterized) = Range(A.op)
 children(A::ParParameterized) = [A.op]
+children_symbol(::ParParameterized) = :op
 id(A::ParParameterized) = "parameterized_$(id(A.op))"
 
 (A::ParOperator{D,R,L,Parametric,FirstOrder})(θ) where {D,R,L} = ParParameterized(A, θ)

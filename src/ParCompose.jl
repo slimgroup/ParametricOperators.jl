@@ -37,6 +37,9 @@ struct ParCompose{D,R,L,P,F,O<:ParamOrder} <: ParOperator{D,R,L,P,HigherOrder}
 
         return new{D,R,L,P,typeof(ops),param_order}(ops, m, n, ranges, uuid4(GLOBAL_RNG))
     end
+
+    ParCompose(D, R, L, P, O, ops, m, n, ranges, id) =
+        new{D,R,L,P,typeof(ops),O}(ops, m, n, ranges, id)
 end
 
 ∘(ops::ParOperator...) = ParCompose(collect(ops))
@@ -52,13 +55,23 @@ adjoint(A::ParCompose{D,R,Linear,P,F,RightFirst}) where {D,R,P,F} = ParCompose(c
 
 function (A::ParCompose{D,R,L,Parametric,F,LeftFirst})(θ::V) where {D,R,L,F,V}
     ops_out = [isnothing(r) ? op : op(view(θ, r)) for (op, r) in zip(A.ops, A.ranges)]
-    return ParCompose(ops_out)
+    return ParCompose(D, R, L, Parameterized, LeftFirst, ops_out, A.m, A.n, A.ranges, A.id)
 end
 
 function (A::ParCompose{D,R,L,Parametric,F,RightFirst})(θ::V) where {D,R,L,F,V}
     N = length(θ)
     ops_out = [isnothing(r) ? op : op(view(θ, N-r.stop+1:N-r.stop+length(r))) for (op, r) in zip(A.ops, A.ranges)]
-    return ParCompose(ops_out)
+    return ParCompose(D, R, L, Parameterized, RightFirst, ops_out, A.m, A.n, A.ranges, A.id)
+end
+
+function ChainRulesCore.rrule(A::ParCompose{D,R,L,Parametric,F,LeftFirst}, θ::V) where {D,R,L,F,V}
+    B = A(θ)
+    function pullback(∂B)
+        θs = []
+        extract_param_gradients!(A, ∂B, θs)
+        return NoTangent(), multitype_vcat(θs...)
+    end
+    return B, pullback
 end
 
 function (A::ParCompose{D,R,L,P,F,O})(x::X) where {D,R,L,P<:Applicable,F,O,X<:AbstractVector{D}}

@@ -37,6 +37,8 @@ init(A::ParOperator{D,R,L,Parametric,HigherOrder}) where {D,R,L} = optional_mult
 
 (A::ParOperator{D,R,L,P,O})(x::X) where {D,R,L,P<:Applicable,O,X<:AbstractMatrix{D}} = mapreduce(A, hcat, eachcol(x))
 (A::ParOperator{Nothing,R,L,P,O})(_) where {R,L,P<:Applicable,O} = A()
+(A::ParOperator{D,R,L,P,O})(x::X, θ::V) where {D,R,L,P<:Parametric,O,X<:AbstractVector{D},V<:AbstractVector} = A(θ)(x)
+(A::ParOperator{D,R,L,P,O})(x::X, θ::V) where {D,R,L,P<:Parametric,O,X<:AbstractMatrix{D},V<:AbstractVector} = A(θ)(x)
 
 *(A::ParLinearOperator{D,R,P,O}, x::X) where {D,R,P<:Applicable,O,X<:AbstractVector{D}} = A(x)
 *(A::ParLinearOperator{D,R,P,O}, x::X) where {D,R,P<:Applicable,O,X<:AbstractMatrix{D}} = A(x)

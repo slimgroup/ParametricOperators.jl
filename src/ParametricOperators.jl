@@ -17,6 +17,8 @@ include("MultiTypeVector.jl")
 include("ParOperator.jl")
 include("ParOperatorTraits.jl")
 
+include("rrule_utils.jl")
+
 include("ParAdjoint.jl")
 include("ParParameterized.jl")
 
@@ -28,5 +30,7 @@ include("ParKron.jl")
 include("ParDiagonal.jl")
 include("ParMatrix.jl")
 include("ParDFT.jl")
+include("ParFunction.jl")
+include("ParRestriction.jl")
 
 end

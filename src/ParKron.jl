@@ -106,6 +106,16 @@ function (A::ParKron{D,R,Parametric,F,N})(θ::V) where {D,R,F,N,V}
     return ParKron(D,R,Parameterized,ops_out,A.m,A.n,A.order,A.perms,A.shapes,A.ranges,A.id)
 end
 
+function ChainRulesCore.rrule(A::ParKron{D,R,Parametric,N,F}, θ::V) where {D,R,F,N,V}
+    B = A(θ)
+    function pullback(∂B)
+        θs = []
+        extract_param_gradients!(A, ∂B, θs)
+        return NoTangent(), multitype_vcat(θs...)
+    end
+    return B, pullback
+end
+
 function (A::ParKron{D,R,P,F,N})(x::X) where {D,R,P<:Applicable,F,N,X<:AbstractVector{D}}
 
     y = reshape(x, map(Domain, reverse(A.ops))...)

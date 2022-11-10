@@ -31,6 +31,8 @@ struct ParAdd{D,R,L,P,F} <: ParOperator{D,R,L,P,HigherOrder}
 
         return new{D,R,L,P,typeof(ops)}(ops, m, n, ranges, uuid4(GLOBAL_RNG))
     end
+
+    ParAdd(D,R,L,P,ops,m,n,ranges,id) = new{D,R,L,P,typeof(ops)}(ops, m, n, ranges, id)
 end
 
 +(ops::ParOperator...) = ParAdd(collect(ops))
@@ -44,7 +46,17 @@ adjoint(A::ParAdd{D,R,Linear,P,F}) where {D,R,P,F} = ParAdd(collect(map(adjoint,
 
 function (A::ParAdd{D,R,L,Parametric,F})(θ::V) where {D,R,L,F,V}
     ops_out = [isnothing(r) ? op : op(view(θ, r)) for (op, r) in zip(A.ops, A.ranges)]
-    return ParAdd(ops_out)
+    return ParAdd(D, R, L, Parameterized, ops_out, A.m, A.n,repeat([nothing], length(ops_out)), A.id)
+end
+
+function ChainRulesCore.rrule(A::ParAdd{D,R,L,Parametric,F}, θ::V) where {D,R,L,F,V}
+    B = A(θ)
+    function pullback(∂B)
+        θs = []
+        extract_param_gradients!(A, ∂B, θs)
+        return NoTangent(), multitype_vcat(θs...)
+    end
+    return B, pullback
 end
 
 function (A::ParAdd{D,R,L,P,F})(x::X) where {D,R,L,P<:Applicable,F,X<:AbstractVector{D}}
