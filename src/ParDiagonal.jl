@@ -10,7 +10,7 @@ end
 Domain(A::ParDiagonal) = A.n
 Range(A::ParDiagonal) = A.n
 nparams(A::ParDiagonal) = A.n
-init(A::ParDiagonal{T}) where {T} = ones(T, A.n)
+init(A::ParDiagonal{T}) where {T} = randn(T, A.n)
 
 function (A::ParParameterized{T,T,Linear,ParDiagonal{T},V})(x::X) where {T,V<:AbstractVector{T},X<:AbstractVector{T}}
     return A.θ.*x

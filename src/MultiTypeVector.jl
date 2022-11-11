@@ -73,6 +73,10 @@ function view(x::MultiTypeVector, i::UnitRange{Int64})
     return multitype_vcat(xs...)
 end
 
+function zero(x::MultiTypeVector)
+    return MultiTypeVector(map(zero, x.vecs)...)
+end
+
 for op in [:+, :-]
     @eval begin
         function $op(lhs::MultiTypeVector, rhs::MultiTypeVector)
@@ -141,4 +145,16 @@ for op in [:+, :-, :*, :/]
             return MultiTypeVector(xs...)
         end
     end
+end
+
+function ^(lhs::MultiTypeVector{S}, rhs::U) where {S,U<:S}
+    xs = map(tup -> begin
+        T = first(tup)
+        i = last(tup)
+        r = lhs.ranges[i]
+        x = lhs.vecs[i]
+        y = T.(rhs)
+        x .^ y
+    end, collect(pairs(lhs.typemap)))
+    return MultiTypeVector(xs...)
 end

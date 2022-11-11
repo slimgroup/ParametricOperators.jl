@@ -1,6 +1,6 @@
 module ParametricOperators
 
-import Base: +, -, *, /, ∘
+import Base: +, -, *, /, ^, ∘
 import Base: adjoint, kron, size, zero, view
 import Base: getindex, setindex!, IndexStyle, IndexLinear
 

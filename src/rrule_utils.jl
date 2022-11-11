@@ -22,7 +22,7 @@ end
 
 function ChainRulesCore.rrule(A::ParLinearOperator{D,R,NonParametric,O}, x::X) where {D,R,O,X<:AbstractMatrix{D}}
     y = A*x
-    function pullback(∂y::Y) where {Y<:AbstractMatrix{R}}
+    function pullback(∂y::Y) where {R,Y<:AbstractMatrix{R}}
         ∂x = @thunk(A'*∂y)
         return NoTangent(), ∂x
     end
