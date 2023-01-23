@@ -1,15 +1,19 @@
 export ParAdjoint
 
-struct ParAdjoint{D,R,P,F} <: ParOperator{R,D,Linear,P,Internal}
+"""
+Lazy container for adjoint.
+"""
+struct ParAdjoint{D,R,P,F<:ParLinearOperator} <: ParLinearOperator{R,D,P,Internal}
     op::F
-    ParAdjoint(A::ParOperator{D,R,Linear,P,T}) where {D,R,P,T} = new{D,R,P,typeof(A)}(A)
+    ParAdjoint(op) = new{DDT(op),RDT(op),parametricity(op),typeof(op)}(op)
 end
+
+adjoint(A::ParLinearOperator) = ParAdjoint(A)
+adjoint(A::ParAdjoint) = A.op
 
 Domain(A::ParAdjoint) = Range(A.op)
 Range(A::ParAdjoint) = Domain(A.op)
 children(A::ParAdjoint) = [A.op]
-id(A::ParAdjoint) = "adjoint_$(id(A.op))"
+from_children(::ParAdjoint, cs) = ParAdjoint(cs[1])
 
-adjoint(A::ParOperator{D,R,Linear,P,T}) where {D,R,P,T} = ParAdjoint(A)
-
-(A::ParAdjoint{D,R,P,F})(x::X) where {D,R,P<:Applicable,F,X<:AbstractVecOrMat{R}} = A.op(x)
+(A::ParAdjoint{D,R,Parametric,F})(params) where {D,R,F} = ParParameterized(adjoint(A.op), params)

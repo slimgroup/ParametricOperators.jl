@@ -1,35 +1,45 @@
 module ParametricOperators
 
+greet() = print("Hello World!")
+
+# ==== Imports ====
+
 import Base: +, -, *, /, ∘
-import Base: adjoint,  kron
-import Base: get, replace!, getindex, setindex!, push!, append!, size, broadcasted, view
-import Base: IndexStyle, IndexLinear
-import Base.Iterators
+import Base: adjoint, kron
 
+using Base: Iterators
 using ChainRulesCore
-using CUDA
-using DataStructures: OrderedDict
-using FFTW
+using DataStructures
+using FFTW: fft, ifft
+using MPI
 using Random: GLOBAL_RNG
-using UUIDs: UUID, uuid4
 
+# ==== Includes ====
+
+# Common types and functions
 include("ParCommon.jl")
-include("MultiTypeVector.jl")
 
+# Base operator definition and functionality
 include("ParOperator.jl")
-include("ParOperatorTraits.jl")
 
+# Operator distribution
+include("ParDistributed.jl")
+include("ParBroadcasted.jl")
+include("ParRepartition.jl")
+
+# Operator wrappers
 include("ParAdjoint.jl")
 include("ParParameterized.jl")
 
+# Operator combinations
+include("ParIdentity.jl") # Include above for use in other files
 include("ParAdd.jl")
 include("ParCompose.jl")
 include("ParKron.jl")
 
+# Operator definitions
 include("ParMatrix.jl")
-include("ParBias.jl")
-include("ParIdentity.jl")
 include("ParDFT.jl")
-include("ParFunction.jl")
+# include("ParFunction.jl")
 
 end
