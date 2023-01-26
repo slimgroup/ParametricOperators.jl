@@ -33,6 +33,10 @@ end
         @eval begin
             adjoint_test(ParMatrix($T, 4, 5))
             adjoint_test(ParMatrix(Complex{$T}, 4, 5))
+            adjoint_test(ParDiagonal($T, 42))
+            adjoint_test(ParDiagonal(Complex{$T}, 42))
+            adjoint_test(ParRestriction($T, 64, [1:4, 61:64]))
+            adjoint_test(ParRestriction(Complex{$T}, 64, [1:4, 61:64]))
             adjoint_test(ParDFT(Complex{$T}, 64))
         end
     end
