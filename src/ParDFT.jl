@@ -1,48 +1,47 @@
-export ParDFT, ParDFTN
+export ParDFT, ParDRFT
 
+"""
+Discrete Fourier transform operator. Implemented using FFT.
+"""
 struct ParDFT{T<:Complex} <: ParLinearOperator{T,T,NonParametric,External}
-    n::Int64
-    id::ID
-    ParDFT(n; T = ComplexF64) = new{T}(n, uuid4(GLOBAL_RNG))
+    n::Int
+    ParDFT(T, n) = new{T}(n)
+    ParDFT(n) = new{ComplexF64}(n)
 end
 
 Domain(A::ParDFT) = A.n
 Range(A::ParDFT) = A.n
-id(A::ParDFT) = A.id
 
 (A::ParDFT{T})(x::X) where {T<:Complex,X<:AbstractVector{T}} = fft(x)./T(sqrt(A.n))
+(A::ParDFT{T})(x::X) where {T<:Complex,X<:AbstractMatrix{T}} = fft(x, 1)./T(sqrt(A.n))
 (A::ParAdjoint{T,T,NonParametric,ParDFT{T}})(x::X) where {T<:Complex,X<:AbstractVector{T}} = ifft(x).*T(sqrt(A.op.n))
+(A::ParAdjoint{T,T,NonParametric,ParDFT{T}})(x::X) where {T<:Complex,X<:AbstractMatrix{T}} = ifft(x, 1).*T(sqrt(A.op.n))
 
-struct ParDFTN{N,K,T<:Complex} <: ParLinearOperator{T,T,NonParametric,External}
-    shape::NTuple{N, Int64}
-    dims::NTuple{K, Int64}
-    n::Int64
-    id::ID
-    ParDFTN(ns...; T = ComplexF64) = new{length(ns),length(ns),T}(
-        ns, 
-        Tuple(1:length(ns)),
-        prod(ns),
-        uuid4(GLOBAL_RNG)
-    )
+"""
+Discrete real-valued Fourier transform operator.
+"""
+struct ParDRFT{T<:Real} <: ParLinearOperator{T,Complex{T},NonParametric,External}
+    n::Int
+    ParDRFT(T, n) = new{T}(n)
+    ParDRFT(n) = new{Float64}(n)
 end
 
-Domain(A::ParDFTN) = A.n
-Range(A::ParDFTN) = A.n
-id(A::ParDFTN) = A.id
+Domain(A::ParDRFT) = A.n
+Range(A::ParDRFT) = div(A.n, 2) + 1
 
-function (A::ParDFTN{N,K,T})(x::X) where {N,K,T<:Complex,X<:AbstractVector{T}}
-    xr = reshape(x, A.shape)
-    yr = fft(xr, A.dims)./T(sqrt(A.n))
-    return vec(yr)
+(A::ParDRFT{T})(x::X) where {T<:Real,X<:AbstractVector{T}} = (fft(x)./Complex{T}(sqrt(A.n)))[1:Range(A)]
+(A::ParDRFT{T})(x::X) where {T<:Real,X<:AbstractMatrix{T}} = (fft(x, 1)./Complex{T}(sqrt(A.n)))[1:Range(A),:]
+
+function (A::ParAdjoint{T,Complex{T},NonParametric,ParDRFT{T}})(y::Y) where {T<:Real,Y<:AbstractVector{Complex{T}}}
+    m = Range(A.op)
+    k = iseven(m) ? m : m-1
+    x = vcat(y, conj(y[k:-1:2]))
+    return real(ifft(x).*T(sqrt(A.op.n)))
 end
 
-function (A::ParAdjoint{T,T,NonParametric,ParDFTN{N,K,T}})(y::Y) where {N,K,T<:Complex,Y<:AbstractVector{T}}
-    yr = reshape(y, A.op.shape)
-    xr = ifft(yr, A.op.dims).*T(sqrt(A.op.n))
-    return vec(xr)
+function (A::ParAdjoint{T,Complex{T},NonParametric,ParDRFT{T}})(y::Y) where {T<:Real,Y<:AbstractMatrix{Complex{T}}}
+    m = Range(A.op)
+    k = iseven(m) ? m : m-1
+    x = vcat(y, conj(y[k:-1:2,:]))
+    return real(ifft(x).*T(sqrt(A.op.n)))
 end
-
-optimize(A::ParKron{T,T,NonParametric,ParDFT{T},ParDFT{T}}) where {T<:Complex} = ParDFTN(A.rhs.n, A.lhs.n; T=T)
-optimize(A::ParKron{T,T,NonParametric,ParDFT{T},ParDFTN{N,K,T}}) where {N,K,T<:Complex} = ParDFTN(A.rhs.shape..., A.lhs.n; T=T)
-optimize(A::ParKron{T,T,NonParametric,ParDFTN{N,K,T},ParDFT{T}}) where {N,K,T<:Complex} = ParDFTN(A.rhs.n, A.lhs.shape...; T=T)
-optimize(A::ParKron{T,T,NonParametric,ParDFTN{M,K,T},ParDFTN{N,L,T}}) where {M,K,N,L,T<:Complex} = ParDFTN(A.rhs.shape..., A.lhs.shape...; T=T)
