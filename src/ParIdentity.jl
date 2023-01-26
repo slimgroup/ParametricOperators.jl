@@ -12,7 +12,8 @@ end
 Domain(A::ParIdentity) = A.n
 Range(A::ParIdentity) = A.n
 adjoint(A::ParIdentity) = A
-(A::ParIdentity)(x) = x
+(A::ParIdentity{T})(x::X) where {T,X<:AbstractVector{T}} = x
+(A::ParIdentity{T})(x::X) where {T,X<:AbstractMatrix{T}} = x
 
 (A::ParDistributed{T,T,Linear,NonParametric,ParIdentity{T}})(x::X) where {T,X<:AbstractVector{T}} = x
 (A::ParDistributed{T,T,Linear,NonParametric,ParIdentity{T}})(x::X) where {T,X<:AbstractMatrix{T}} = x
