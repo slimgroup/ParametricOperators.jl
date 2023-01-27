@@ -14,7 +14,7 @@ order(::ParSeparableOperator) = throw(ParException("Unimplemented"))
 Kronecker product of linear operators
 """
 struct ParKron{D,R,P,F,N} <: ParSeparableOperator{D,R,P,Internal}
-    ops::F # Operators in Kronecker order (e.g. B ⊗ A ⟹   ops = [B, A])
+    ops::F # Operators in Kronecker order (e.g. B ⊗ A ⟹ ops = [B, A])
     order::Vector{Int} # Order of operator application
     perms::Vector{NTuple{N, Int}} # List of permutations between input/output and intermediates
     shapes_in::Vector{NTuple{N, Int}} # List of permuted input shapes
@@ -46,9 +46,9 @@ struct ParKron{D,R,P,F,N} <: ParSeparableOperator{D,R,P,Internal}
                 R = reduce(subset_type, map(j -> RDT(ops[j]), candidates))
                 filter!(j -> RDT(ops[j]) == R, candidates)
 
-                # Find the smallest range of the remaining candidates and filter
-                min_range = minimum(map(j -> Range(ops[j]), candidates))
-                filter!(j -> Range(ops[j]) == min_range, candidates)
+                # Find the candidates that bring size down the most
+                min_range = minimum(map(j -> Range(ops[j]) - Domain(ops[j]), candidates))
+                filter!(j -> Range(ops[j]) - Domain(ops[j]) == min_range, candidates)
 
                 # Select the operator in slot closest to contiguous dimension
                 @assert length(candidates) > 0 "Invalid datatype combination in ParKron"

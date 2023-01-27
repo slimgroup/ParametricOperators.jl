@@ -12,10 +12,10 @@ end
 Domain(A::ParDFT) = A.n
 Range(A::ParDFT) = A.n
 
-(A::ParDFT{T})(x::X) where {T<:Complex,X<:AbstractVector{T}} = fft(x)./T(sqrt(A.n))
-(A::ParDFT{T})(x::X) where {T<:Complex,X<:AbstractMatrix{T}} = fft(x, 1)./T(sqrt(A.n))
-(A::ParAdjoint{T,T,NonParametric,ParDFT{T}})(x::X) where {T<:Complex,X<:AbstractVector{T}} = ifft(x).*T(sqrt(A.op.n))
-(A::ParAdjoint{T,T,NonParametric,ParDFT{T}})(x::X) where {T<:Complex,X<:AbstractMatrix{T}} = ifft(x, 1).*T(sqrt(A.op.n))
+(A::ParDFT{T})(x::X) where {T<:Complex,X<:AbstractVector{T}} = fft(x)./sqrt(A.n)
+(A::ParDFT{T})(x::X) where {T<:Complex,X<:AbstractMatrix{T}} = fft(x, 1)./sqrt(A.n)
+(A::ParAdjoint{T,T,NonParametric,ParDFT{T}})(x::X) where {T<:Complex,X<:AbstractVector{T}} = ifft(x).*sqrt(A.op.n)
+(A::ParAdjoint{T,T,NonParametric,ParDFT{T}})(x::X) where {T<:Complex,X<:AbstractMatrix{T}} = ifft(x, 1).*sqrt(A.op.n)
 
 """
 Discrete real-valued Fourier transform operator.

@@ -1,3 +1,4 @@
+using FFTW
 using ParametricOperators
 using Test
 
@@ -51,4 +52,18 @@ end
     K2 = A ⊗ B ⊗ C
     adjoint_test(K1)
     adjoint_test(K2)
+
+    # Map data to FFT space for multidim FFTs
+    (nx, ny) = (253, 640)
+    Fx = ParDFT(nx)
+    Fy = ParDFT(ny)
+    F = Fy ⊗ Fx
+    x = rand(DDT(F), Domain(F))
+    y = vec(fft(rand(nx, ny)))
+    ỹ = F*x
+    x̃ = F'*y
+    u = real(x'*x̃)
+    v = real(y'*ỹ)
+    r = u/v
+    @test r ≈ 1.0 rtol=1e-3
 end
