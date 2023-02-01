@@ -1,4 +1,4 @@
-export ParOperator, ParLinearOperator
+export ParOperator, ParLinearOperator, ParNonLinearOperator
 export DDT, RDT, Domain, Range, linearity, parametricity, ast_location
 export children, nparams, init, from_children
 
@@ -65,6 +65,11 @@ abstract type ParOperator{D,R,L<:Linearity,P<:Parametricity,T<:ASTLocation} end
 Linear operator type (defined for convenience).
 """
 const ParLinearOperator{D,R,P,T} = ParOperator{D,R,Linear,P,T}
+
+"""
+Nonlinear operator type (defined for convenience).
+"""
+const ParNonLinearOperator{D,R,P,T} = ParOperator{D,R,NonLinear,P,T}
 
 """
 Parametric operator type (defined for convenience).
@@ -162,6 +167,12 @@ Apply the given operator on a vector.
 Apply the given operator to a matrix. By default, apply to each of the columns.
 """
 (A::ParOperator{D,R,L,<:Applicable,T})(x::X) where {D,R,L,T,X<:AbstractMatrix{D}} = mapreduce(col -> A(col), hcat, eachcol(x))
+
+"""
+Apply a nonlinear operator on a vector.
+"""
+(A::ParNonLinearOperator{D,R,Parametric,T})(x::X, θ) where {D,R,T,X<:AbstractVector{D}} = A(θ)(x)
+(A::ParNonLinearOperator{D,R,Parametric,T})(x::X, θ) where {D,R,T,X<:AbstractMatrix{D}} = A(θ)(x)
 
 """
 Apply a linear operator to a vector or matrix through multiplication.
