@@ -1,6 +1,7 @@
-export ParOperator, ParLinearOperator, ParNonLinearOperator
+export ParOperator, ParLinearOperator
 export DDT, RDT, Domain, Range, linearity, parametricity, ast_location
-export children, nparams, init, from_children
+export init!, init, scale!, update!
+export children, params
 
 # ==== Type Definitions ====
 
@@ -20,7 +21,6 @@ promote_linearity(::Type{<:Linearity}, ::Type{<:Linearity}) = NonLinear
 """
 Typeflag for whether a given operator is parametric, nonparametric, or parameterized
 with some given parameters.
-
 Note: A distinction is made for parametric vs. parameterized to allow for proper
 method dispatch.
 """
@@ -65,11 +65,6 @@ abstract type ParOperator{D,R,L<:Linearity,P<:Parametricity,T<:ASTLocation} end
 Linear operator type (defined for convenience).
 """
 const ParLinearOperator{D,R,P,T} = ParOperator{D,R,Linear,P,T}
-
-"""
-Nonlinear operator type (defined for convenience).
-"""
-const ParNonLinearOperator{D,R,P,T} = ParOperator{D,R,NonLinear,P,T}
 
 """
 Parametric operator type (defined for convenience).
@@ -122,41 +117,70 @@ children(::ParOperator{D,R,L,P,External}) where {D,R,L,P} = []
 children(::ParOperator{D,R,L,P,Internal}) where {D,R,L,P} = throw(ParException("Unimplemented"))
 
 """
-Number of non-const parameters of the given operator.
+Rebuild the given operator using a vector of new children.
 """
-nparams(::ParOperator{D,R,L,<:Applicable,T}) where {D,R,L,T} = 0
-nparams(A::ParOperator{D,R,L,Parametric,Internal}) where {D,R,L} = sum(map(nparams, children(A)))
+rebuild(A::ParOperator{D,R,L,P,External}, _) where {D,R,L,P} = A
+rebuild(::ParOperator{D,R,L,P,Internal}, _) where {D,R,L,P} = throw(ParException("Unimplemented")) 
 
 """
-Initialize the given operator
+Parameter dict typedef.
 """
-init(::ParOperator{D,R,L,<:Applicable,T}) where {D,R,L,T} = []
-init(A::ParOperator{D,R,L,Parametric,Internal}) where {D,R,L} = collect(Iterators.flatten(map(init, children(A))))
+const Parameters = Dict{ParOperator,Any}
+
+for op in [:+, :-, :*, :/, :^]
+    @eval $op(p0::Parameters, p1::Parameters) = mergewith(BroadcastFunction($op), p0, p1)
+    @eval $op(p0::Parameters, p1::Dict) = mergewith(BroadcastFunction($op), p0, p1)
+    @eval $op(p0::Dict, p1::Parameters) = mergewith(BroadcastFunction($op), p0, p1)
+end
 
 """
-Rebuild the given operator from a list of children.
+Update parameters with gradients.
 """
-from_children(A::ParOperator{D,R,L,P,External}, _) where {D,R,L,P} = A
-from_children(::ParOperator{D,R,L,P,Internal}, _) where {D,R,L,P} = throw(ParException("Unimplemented"))
+update!(params::Parameters, grads::Dict) = mergewith!(BroadcastFunction(-), params, grads)
+
+"""
+Scale parameters with a number.
+"""
+function scale!(a::Number, params::Dict)
+    for k in keys(params)
+        scale!(a, params[k])
+    end
+end
+
+function scale!(a::Number, x::AbstractArray{<:AbstractArray})
+    for v in x
+        scale!(a, v)
+    end
+end
+
+function scale!(a::Number, x::AbstractArray{<:Number})
+    x .*= a
+end
+
+"""
+Initialize the given operator into the given dictionary.
+"""
+init!(::ParOperator{D,R,L,<:Applicable,External}, d::Parameters) where {D,R,L} = nothing
+
+function init!(A::ParOperator{D,R,L,Parametric,Internal}, d::Parameters) where {D,R,L}
+    for c in children(A)
+        init!(c, d)
+    end
+end
+
+"""
+Initialize the given operator creating a new dictionary.
+"""
+function init(A::ParOperator)
+    d = Parameters()
+    init!(A, d)
+    return d
+end
 
 """
 Parameterize the given operator
 """
-function (A::ParOperator{D,R,L,Parametric,Internal})(params) where {D,R,L}
-    param_ranges = cumranges([nparams(c) for c in children(A)])
-    cs_out = [parametricity(c) == Parametric ? c(params[r]) : c for (c, r) in zip(children(A), param_ranges)]
-    return from_children(A, cs_out)
-end
-
-"""
-Get the parameters of a given operator
-"""
-params(::ParOperator{D,R,L,NonParametric,T}) where {D,R,L,T} = []
-params(::ParOperator{D,R,L,Parametric,External}) where {D,R,L} = []
-params(A::ParOperator{D,R,L,<:Union{Parametric,Parameterized},Internal}) where {D,R,L} =
-    collect(Iterators.flatten(map(params, children(A))))
-
-# ==== Functionality Definitions ====
+(A::ParOperator{D,R,L,Parametric,Internal})(params) where {D,R,L} = rebuild(A, collect(map(c -> c(params), children(A))))
 
 """
 Apply the given operator on a vector.
@@ -167,12 +191,6 @@ Apply the given operator on a vector.
 Apply the given operator to a matrix. By default, apply to each of the columns.
 """
 (A::ParOperator{D,R,L,<:Applicable,T})(x::X) where {D,R,L,T,X<:AbstractMatrix{D}} = mapreduce(col -> A(col), hcat, eachcol(x))
-
-"""
-Apply a nonlinear operator on a vector.
-"""
-(A::ParNonLinearOperator{D,R,Parametric,T})(x::X, θ) where {D,R,T,X<:AbstractVector{D}} = A(θ)(x)
-(A::ParNonLinearOperator{D,R,Parametric,T})(x::X, θ) where {D,R,T,X<:AbstractMatrix{D}} = A(θ)(x)
 
 """
 Apply a linear operator to a vector or matrix through multiplication.
