@@ -13,6 +13,8 @@ end
 Domain(A::ParMatrix) = A.n
 Range(A::ParMatrix) = A.m
 
+complexity(A::ParMatrix{T}) where {T} = elementwise_multiplication_cost(T)*A.n*A.m
+
 function init!(A::ParMatrix{T}, d::Parameters) where {T}
     d[A] = rand(T, A.m, A.n)
 end

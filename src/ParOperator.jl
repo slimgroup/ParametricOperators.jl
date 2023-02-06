@@ -160,7 +160,7 @@ end
 """
 Initialize the given operator into the given dictionary.
 """
-init!(::ParOperator{D,R,L,<:Applicable,External}, d::Parameters) where {D,R,L} = nothing
+init!(::ParOperator{D,R,L,<:Applicable,T}, d::Parameters) where {D,R,L,T} = nothing
 
 function init!(A::ParOperator{D,R,L,Parametric,Internal}, d::Parameters) where {D,R,L}
     for c in children(A)
@@ -180,7 +180,8 @@ end
 """
 Parameterize the given operator
 """
-(A::ParOperator{D,R,L,Parametric,Internal})(params) where {D,R,L} = rebuild(A, collect(map(c -> c(params), children(A))))
+(A::ParOperator{D,R,L,Parametric,Internal})(params) where {D,R,L} =
+    rebuild(A, collect(map(c -> parametricity(c) == Parametric ? c(params) : c, children(A))))
 
 """
 Apply the given operator on a vector.

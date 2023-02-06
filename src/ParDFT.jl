@@ -21,6 +21,8 @@ end
 Domain(A::ParDFT) = A.n
 Range(A::ParDFT) = A.m
 
+complexity(A::ParDFT{D,R}) where {D,R} = elementwise_multiplication_cost(R)*A.n*log2(A.n)
+
 (A::ParDFT{D,R})(x::X) where {D<:Complex,R,X<:AbstractMatrix{D}} = fft(x, 1)./sqrt(A.n)
 (A::ParDFT{D,R})(x::X) where {D<:Real,R,X<:AbstractMatrix{D}} = rfft(x, 1)./sqrt(A.n)
 (A::ParDFT{D,R})(x::X) where {D,R,X<:AbstractVector{D}} = vec(A(reshape(x, length(x), 1)))

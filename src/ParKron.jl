@@ -1,6 +1,12 @@
 export ParSeparableOperator, ParKron, ⊗
+export reorder
 
 abstract type ParSeparableOperator{D,R,P,T} <: ParLinearOperator{D,R,P,T} end
+
+"""
+Get the order of operator application in a separable operator.
+"""
+order(::ParSeparableOperator) = throw(ParException("Unimplemented"))
 
 """
 Kronecker product operator.
@@ -65,9 +71,119 @@ kron(A::ParKron, B::ParKron) = ParKron(A.ops..., B.ops...)
 
 Domain(A::ParSeparableOperator) = prod(map(Domain, children(A)))
 Range(A::ParSeparableOperator) = prod(map(Range, children(A)))
+
 children(A::ParKron) = A.ops
 rebuild(::ParKron, cs) = ParKron(cs...)
 adjoint(A::ParKron{D,R,P,F,N}) where {D,R,P,F,N} = ParKron(R,D,P,collect(map(adjoint, A.ops)), reverse(A.order))
+order(A::ParKron) = A.order
+
+"""
+Change application order of Kronecker product. Throws an error if the
+given order would result in an invalid type sequence. TODO: add the
+option to force type conversion?
+"""
+function reorder(A::ParKron{D,R,P,F,N}, ord) where {D,R,P,F,N}
+    for i in 1:N-1
+        if RDT(A.ops[ord[i]]) != DDT(A.ops[ord[i]])
+            throw(ParException("Invalid order $ord for Kronecker product $A. Types do not agree"))
+        end
+    end
+    return ParKron(D,R,P,A.ops,ord) 
+end
+
+"""
+Complexity of a separable operator is given by taking the complexity
+of applying an individual operator an multiplying it by the size of
+the rest of the tensor (# of cols in matrix form).
+"""
+function complexity(A::ParSeparableOperator)
+    c = 0.0
+    p = prod(map(Domain, children(A)))
+    cs = children(A)
+    for o in order(A)
+        # (Complexity of mvp) * (# cols in matrix)
+        c += complexity(cs[o])*(p÷Domain(cs[o]))
+        p = (p ÷ Domain(cs[o])) * Range(cs[o])
+    end
+    return c
+end
+
+"""
+The hash of a separable operator also depends on application order.
+"""
+function merkle_hash(A::ParSeparableOperator)
+    # Combine hashes of children
+    hash_str = foldl(*, map(c -> "$(merkle_hash(c))", children(A)))
+
+    # Add hash of order (cast to Int64 to prevent differing types causing differing hashes)
+    hash_str *= "$(hash(Int64.(order(A))))"
+
+    return hash(hash_str)
+end
+
+"""
+Kronecker product operators can have their application order shuffled to reduce
+complexity.
+"""
+function transforms(A::ParKron)
+    n = length(A.ops)
+    return Channel() do channel
+        for ord in permutations(collect(1:n))
+            try
+                A_reorder = reorder(A, ord)
+                put!(channel, A_reorder)
+            catch
+            end
+        end
+    end
+end
+
+"""
+Multiplication of two separable operators gives the ability to apply the mixed-product
+property.
+"""
+function transforms(A::ParCompose{D,R,Linear,P,<:AbstractVector{<:ParSeparableOperator},2}) where {D,R,P}
+    
+    A_lhs = A.ops[1]
+    A_rhs = A.ops[2]
+    cs_lhs = children(A_lhs)
+    cs_rhs = children(A_rhs)
+    N = length(cs_lhs)
+    
+    # If there are the same number of operators and they have matching dimensions,
+    # it is valid to apply the rule
+    if length(cs_rhs) == N && all(DDT(l) == RDT(r) && Domain(l) == Range(r) for (l, r) in zip(cs_lhs, cs_rhs))
+        return Channel() do channel
+            for select in Iterators.product([[true, false] for _ in 1:N]...)
+                
+                # If no operators are selected from rhs, keep going
+                if !any(select)
+                    continue
+                end
+                
+                # Move operators from rhs -> lhs, replacing rhs w/ identity
+                ops_out_lhs = [select[i] ? cs_lhs[i]*cs_rhs[i] : cs_lhs[i] for i in 1:N]
+                ops_out_rhs = [select[i] ? ParIdentity(DDT(cs_rhs[i]), Domain(cs_rhs[i])) : cs_rhs[i] for i in 1:N]
+                
+                # If we moved all operators, only return lhs, otherwise return
+                # combination of both
+                if all(select)
+                    for op in transforms(rebuild(A_lhs, ops_out_lhs))
+                        put!(channel, op)
+                    end
+                else
+                    lhs_out = rebuild(A_lhs, ops_out_lhs)
+                    rhs_out = rebuild(A_rhs, ops_out_rhs)
+                    for ops in Iterators.product(transforms(lhs_out), transforms(rhs_out))
+                        put!(channel, ops[1]*ops[2])
+                    end
+                end
+            end
+        end
+    else
+        return []
+    end
+end
 
 function (A::ParKron{D,R,<:Applicable,F,N})(x::X) where {D,R,F,N,X<:AbstractMatrix{D}}
     
@@ -100,3 +216,20 @@ end
 
 (A::ParKron{D,R,<:Applicable,F,N})(x::X) where {D,R,F,N,X<:AbstractVector{D}} =
     vec(A(reshape(x, length(x), 1)))
+
+function latex_string(A::ParKron{D,R,P,F,N}) where {D,R,P,F,N}
+    child_eqns = [latex_string(c) for c in children(A)]
+    if ast_location(A.ops[1]) == Internal
+        out = "($(child_eqns[1]))"
+    else
+        out = child_eqns[1]
+    end
+    for i in 2:N
+        if ast_location(A.ops[i]) == Internal
+            out *= "\\otimes($(child_eqns[i]))"
+        else
+            out *= "\\otimes $(child_eqns[i])"
+        end
+    end
+    return out
+end

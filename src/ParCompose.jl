@@ -34,7 +34,6 @@ end
 ∘(A::ParCompose, B::ParCompose) = ParCompose(A.ops..., B.ops...)
 *(ops::ParLinearOperator...) = ∘(ops...)
 
-
 Domain(A::ParCompose{D,R,L,P,F,N}) where {D,R,L,P,F,N} = Domain(A.ops[N])
 Range(A::ParCompose{D,R,L,P,F,N}) where {D,R,L,P,F,N} = Range(A.ops[1])
 children(A::ParCompose) = A.ops
@@ -61,4 +60,39 @@ function *(x::X, A::ParCompose{D,R,Linear,<:Applicable,F,N}) where {D,R,F,N,X<:A
         x = x*A.ops[i]
     end
     return x
+end
+
+function latex_string(A::ParCompose{D,R,Linear,P,F,N}) where {D,R,P,F,N}
+    child_eqns = [latex_string(c) for c in children(A)]
+    if ast_location(A.ops[1]) == Internal
+        out = "($(child_eqns[1]))"
+    else
+        out = child_eqns[1]
+    end
+    
+    for i in 2:N
+        if ast_location(A.ops[i]) == Internal
+            out *= "\\ast($(child_eqns[i]))"
+        else
+            out *= "\\ast $(child_eqns[i])"
+        end
+    end
+    return out
+end
+
+function latex_string(A::ParCompose{D,R,NonLinear,P,F,N}) where {D,R,P,F,N}
+    child_eqns = [latex_string(c) for c in children(A)]
+    if ast_location(A.ops[1]) == Internal
+        out = "($(child_eqns[1]))"
+    else
+        out = child_eqns[1]
+    end
+    for i in 2:N
+        if ast_location(A.ops[i]) == Internal
+            out *= "\\circ($(child_eqns[i]))"
+        else
+            out *= "\\circ $(child_eqns[i])"
+        end
+    end
+    return out
 end
