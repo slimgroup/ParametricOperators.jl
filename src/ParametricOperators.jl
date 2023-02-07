@@ -9,6 +9,8 @@ using Combinatorics
 using DataStructures: OrderedDict, DefaultDict
 using FFTW
 using LaTeXStrings
+using Match
+using MPI
 
 # ==== Includes ====
 
@@ -23,12 +25,17 @@ include("ParOperatorViz.jl")
 include("MachineModel.jl")
 include("ASTOptimization.jl")
 
+# Operator distribution
+include("ParDistributed.jl")
+include("ParBroadcasted.jl")
+include("ParRepartition.jl")
+
 # Operator wrappers
+include("ParIdentity.jl") # Include above for use in transforms, etc.
 include("ParAdjoint.jl")
 include("ParParameterized.jl")
 
 # Operator combinations
-include("ParIdentity.jl") # Include above for use in transforms, etc.
 include("ParCompose.jl")
 include("ParKron.jl")
 

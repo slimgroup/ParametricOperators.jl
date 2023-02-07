@@ -20,6 +20,11 @@ struct ParKron{D,R,P,F,N} <: ParSeparableOperator{D,R,P,Internal}
         ops = collect(ops)
         N = length(ops)
 
+        # We can't Kronecker only a single operator
+        if N == 1
+            return ops[1]
+        end
+
         # Find the domain type which is the most "sub" type
         DDTs = map(DDT, ops)
         RDTs = map(RDT, ops)
@@ -122,13 +127,57 @@ function merkle_hash(A::ParSeparableOperator)
 end
 
 """
-Kronecker product operators can have their application order shuffled to reduce
-complexity.
+Transformations for Kronecker product:
+    - Inserting parentheses
+    - Reordering operators
 """
 function transforms(A::ParKron)
     n = length(A.ops)
+
     return Channel() do channel
+
+        # Insert parens
+        if n > 2
+            for paren_length in 2:n-1
+                for i in 1:n-paren_length+1
+
+                    left_ops = [A.ops[j] for j in 1:i-1]
+                    middle_ops = [A.ops[j] for j in i:i+paren_length-1]
+                    right_ops = [A.ops[j] for j in i+paren_length:n]
+                    
+                    # TODO: This does not cover the case of no parents on some op groups...
+                    @match (length(left_ops), length(middle_ops), length(right_ops)) begin
+                        (0, n, m) => begin
+                            M = ParKron(middle_ops...)
+                            R = ParKron(right_ops...)
+                            for (M_t, R_t) in Iterators.product(transforms(M), transforms(R))
+                                put!(channel, ParKron(M_t, R_t))
+                            end
+                        end
+                        (n, m, 0) => begin
+                            L = ParKron(left_ops...)
+                            M = ParKron(middle_ops...)
+                            for (L_t, M_t) in Iterators.product(transforms(L), transforms(M))
+                                put!(channel, ParKron(L_t, M_t))
+                            end
+                        end
+                        (n, m, k) => begin
+                            L = ParKron(left_ops...)
+                            M = ParKron(middle_ops...)
+                            R = ParKron(right_ops...)
+                            for (L_t, M_t, R_t) in Iterators.product(transforms(L), transforms(M), transforms(R))
+                                put!(channel, ParKron(L_t, M_t, R_t))
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        # Permute order
         for ord in permutations(collect(1:n))
+
+            # Try-catch here captures the exception thrown by reorder() if the output is invalid
             try
                 A_reorder = reorder(A, ord)
                 put!(channel, A_reorder)
@@ -232,4 +281,62 @@ function latex_string(A::ParKron{D,R,P,F,N}) where {D,R,P,F,N}
         end
     end
     return out
+end
+
+"""
+Distributes Kronecker product over the given communicator
+"""
+function distribute(A::ParKron, dims_in, dims_out=dims_in, parent_comm=MPI.COMM_WORLD)
+
+    comm_in  = MPI.Cart_create(parent_comm, dims_in)
+    comm_out = MPI.Cart_create(parent_comm, dims_out)
+
+    dims, _, _ = MPI.Cart_get(comm_in)
+    N = length(dims)
+    @assert length(A.ops) == N
+
+    size_curr = collect(map(Domain, reverse(A.ops)))
+    comm_prev = comm_in
+
+    ops = []
+
+    for i in 1:N
+
+        @show size_curr
+
+        # Get operator i
+        o = A.order[i]
+        d = N-o+1
+        Ai = A.ops[o]
+
+        # Compute size of dims for communicator
+        dims_i = copy(dims)
+        dims_i[d] = 1
+        dims_i[mod1(d+1, N)] *= dims[d]
+        comm_i = MPI.Cart_create(parent_comm, dims_i)
+        coords_i = MPI.Cart_coords(comm_i)
+
+        # Create repartition operator
+        pushfirst!(ops, ParRepartition(DDT(Ai), comm_prev, comm_i, tuple(size_curr...)))
+
+        # Create Kronecker w/ distributed identities
+        idents_dim_lower = []
+        idents_dim_upper = []
+        
+        for j in d+1:N
+            pushfirst!(idents_dim_lower, ParDistributed(ParIdentity(DDT(Ai), size_curr[j]), coords_i[j], dims_i[j]))
+        end
+        for j in 1:d-1
+            pushfirst!(idents_dim_upper, ParDistributed(ParIdentity(DDT(Ai), size_curr[j]), coords_i[j], dims_i[j]))
+        end
+
+        pushfirst!(ops, ParKron(idents_dim_upper..., ParBroadcasted(Ai, comm_i), idents_dim_lower...))
+
+        size_curr[d] = Range(Ai)
+        comm_prev = comm_i
+    end
+
+    pushfirst!(ops, ParRepartition(RDT(A.ops[A.order[end]]), comm_prev, comm_out, tuple(size_curr...)))
+
+    return ParCompose(ops...)
 end
