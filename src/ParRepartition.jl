@@ -42,23 +42,23 @@ mutable struct ParRepartition{T,N} <: ParLinearOperator{T,T,NonParametric,Extern
         has_in_out_overlap = true
         has_out_in_overlap = true
         for i in 1:N
-            start_in_out = findfirst([length(intersect(ranges_in_this_rank[i], r)) > 0 for r in ranges_axes_out[i]]) 
-            stop_in_out = findlast([length(intersect(ranges_in_this_rank[i], r)) > 0 for r in ranges_axes_out[i]]) 
+            start_in_out = findfirst([length(intersect(ranges_in_this_rank[i], r)) > 0 for r in ranges_axes_out[i]])
+            stop_in_out = findlast([length(intersect(ranges_in_this_rank[i], r)) > 0 for r in ranges_axes_out[i]])
             if !isnothing(start_in_out) && !isnothing(stop_in_out)
                 push!(overlaps_in_out, start_in_out:stop_in_out)
             else
                 has_in_out_overlap = false
             end
 
-            start_out_in = findfirst([length(intersect(ranges_out_this_rank[i], r)) > 0 for r in ranges_axes_in[i]]) 
-            stop_out_in = findlast([length(intersect(ranges_out_this_rank[i], r)) > 0 for r in ranges_axes_in[i]]) 
+            start_out_in = findfirst([length(intersect(ranges_out_this_rank[i], r)) > 0 for r in ranges_axes_in[i]])
+            stop_out_in = findlast([length(intersect(ranges_out_this_rank[i], r)) > 0 for r in ranges_axes_in[i]])
             if !isnothing(start_out_in) && !isnothing(stop_out_in)
                 push!(overlaps_out_in, start_out_in:stop_out_in)
             else
                 has_out_in_overlap = false
             end
         end
-        
+
         # From overlaps, get range needed for slicing and ranks
         send_ranks = []
         send_ranges = []
@@ -103,7 +103,7 @@ mutable struct ParRepartition{T,N} <: ParLinearOperator{T,T,NonParametric,Extern
             global_size,
             local_size_in,
             local_size_out,
-            send_data, 
+            send_data,
             recv_data,
             nothing
         )
@@ -138,7 +138,7 @@ end
 complexity(R::ParRepartition) = MPI.Allreduce([local_complexity(R)], MPI.SUM, R.comm_union)[1]
 
 function (R::ParRepartition{T,N})(x::X) where {T,N,X<:AbstractMatrix{T}}
-    
+
     batch_size = size(x)[2]
     x = reshape(x, R.local_size_in..., batch_size)
     y = zeros_like(x, R.local_size_out..., batch_size)
@@ -164,7 +164,7 @@ function (R::ParRepartition{T,N})(x::X) where {T,N,X<:AbstractMatrix{T}}
 
     for (recv_rank, (_, recv_buf)) in R.recv_data
         if recv_rank != this_rank
-            push!(reqs, MPI.Irecv!(recv_buf, R.comm_union; source=recv_rank)) 
+            push!(reqs, MPI.Irecv!(recv_buf, R.comm_union; source=recv_rank))
             req_idx_to_recv_rank[length(reqs)] = recv_rank
         end
     end

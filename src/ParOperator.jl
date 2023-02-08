@@ -121,7 +121,7 @@ children(::ParOperator{D,R,L,P,Internal}) where {D,R,L,P} = throw(ParException("
 Rebuild the given operator using a vector of new children.
 """
 rebuild(A::ParOperator{D,R,L,P,External}, _) where {D,R,L,P} = A
-rebuild(::ParOperator{D,R,L,P,Internal}, _) where {D,R,L,P} = throw(ParException("Unimplemented")) 
+rebuild(::ParOperator{D,R,L,P,Internal}, _) where {D,R,L,P} = throw(ParException("Unimplemented"))
 
 """
 Parameter dict typedef.

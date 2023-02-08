@@ -69,7 +69,7 @@ function latex_string(A::ParCompose{D,R,Linear,P,F,N}) where {D,R,P,F,N}
     else
         out = child_eqns[1]
     end
-    
+
     for i in 2:N
         if ast_location(A.ops[i]) == Internal
             out *= "\\ast($(child_eqns[i]))"

@@ -6,7 +6,7 @@ Computes the Merkle hash of a given subtree for use with AST optimization.
 function merkle_hash(A::ParOperator{D,R,L,P,External}) where {D,R,L,P}
     # Name of A without types
     op_str = "$(Base.typename(typeof(A)).wrapper)"
-    
+
     # Domain and range types
     op_str *= "_DDT=$(D)_RDT=$(R)"
 

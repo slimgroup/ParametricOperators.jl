@@ -55,7 +55,7 @@ struct ParKron{D,R,P,F,N} <: ParSeparableOperator{D,R,P,Internal}
                 T = RDTs[order[i]]
             end
         end
-        
+
         D = DDT(ops[order[1]])
         R = RDT(ops[order[N]])
         P = foldl(promote_parametricity, map(parametricity, ops))
@@ -93,7 +93,7 @@ function reorder(A::ParKron{D,R,P,F,N}, ord) where {D,R,P,F,N}
             throw(ParException("Invalid order $ord for Kronecker product $A. Types do not agree"))
         end
     end
-    return ParKron(D,R,P,A.ops,ord) 
+    return ParKron(D,R,P,A.ops,ord)
 end
 
 """
@@ -144,7 +144,7 @@ function transforms(A::ParKron)
                     left_ops = [A.ops[j] for j in 1:i-1]
                     middle_ops = [A.ops[j] for j in i:i+paren_length-1]
                     right_ops = [A.ops[j] for j in i+paren_length:n]
-                    
+
                     # TODO: This does not cover the case of no parents on some op groups...
                     @match (length(left_ops), length(middle_ops), length(right_ops)) begin
                         (0, n, m) => begin
@@ -192,28 +192,28 @@ Multiplication of two separable operators gives the ability to apply the mixed-p
 property.
 """
 function transforms(A::ParCompose{D,R,Linear,P,<:AbstractVector{<:ParSeparableOperator},2}) where {D,R,P}
-    
+
     A_lhs = A.ops[1]
     A_rhs = A.ops[2]
     cs_lhs = children(A_lhs)
     cs_rhs = children(A_rhs)
     N = length(cs_lhs)
-    
+
     # If there are the same number of operators and they have matching dimensions,
     # it is valid to apply the rule
     if length(cs_rhs) == N && all(DDT(l) == RDT(r) && Domain(l) == Range(r) for (l, r) in zip(cs_lhs, cs_rhs))
         return Channel() do channel
             for select in Iterators.product([[true, false] for _ in 1:N]...)
-                
+
                 # If no operators are selected from rhs, keep going
                 if !any(select)
                     continue
                 end
-                
+
                 # Move operators from rhs -> lhs, replacing rhs w/ identity
                 ops_out_lhs = [select[i] ? cs_lhs[i]*cs_rhs[i] : cs_lhs[i] for i in 1:N]
                 ops_out_rhs = [select[i] ? ParIdentity(DDT(cs_rhs[i]), Domain(cs_rhs[i])) : cs_rhs[i] for i in 1:N]
-                
+
                 # If we moved all operators, only return lhs, otherwise return
                 # combination of both
                 if all(select)
@@ -235,7 +235,7 @@ function transforms(A::ParCompose{D,R,Linear,P,<:AbstractVector{<:ParSeparableOp
 end
 
 function (A::ParKron{D,R,<:Applicable,F,N})(x::X) where {D,R,F,N,X<:AbstractMatrix{D}}
-    
+
     # Reshape to input shape
     b = size(x)[2]
     s = reverse(collect(map(Domain, A.ops)))
@@ -322,7 +322,7 @@ function distribute(A::ParKron, dims_in, dims_out=dims_in, parent_comm=MPI.COMM_
         # Create Kronecker w/ distributed identities
         idents_dim_lower = []
         idents_dim_upper = []
-        
+
         for j in d+1:N
             pushfirst!(idents_dim_lower, ParDistributed(ParIdentity(DDT(Ai), size_curr[j]), coords_i[j], dims_i[j]))
         end

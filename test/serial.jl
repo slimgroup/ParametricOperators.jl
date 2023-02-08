@@ -11,7 +11,7 @@ function adjoint_test(A::ParLinearOperator{D,R,<:ParametricOperators.Applicable,
     v = real(y'*ỹ)
     r = u/v
     @test r ≈ 1.0 rtol=1e-3
-    
+
     batch_size = 10
     x = rand(DDT(A), Domain(A), batch_size)
     y = rand(RDT(A), Range(A), batch_size)

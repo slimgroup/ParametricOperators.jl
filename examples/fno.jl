@@ -28,7 +28,7 @@ function spectral_convolution(T, shape_spacetime, modes_spacetime, lifted_dim)
 
     # Spectral conv
     return dft_all'*frequency_weight*dft_all
-    
+
 end
 
 function channel_mixing(T, shape_spacetime, lifted_dim)
