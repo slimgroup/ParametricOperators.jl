@@ -45,9 +45,9 @@ struct ParKron{D,R,P,F,N} <: ParSeparableOperator{D,R,P,Internal}
 
                 # Filter the candidates to those which minimize the array size
                 # on output
-                differences = map(j -> Range(ops[j]) - Domain(ops[j]), candidates)
-                min_difference = minimum(differences)
-                candidates = filter(j -> Range(ops[j]) - Domain(ops[j]) == min_difference, candidates)
+                differences = map(j -> Domain(ops[j]) - Range(ops[j]), candidates)
+                max_difference = maximum(differences)
+                candidates = filter(j -> (Domain(ops[j]) - Range(ops[j])) == max_difference, candidates)
 
                 # Finally, if there is more than one potential candidate, select
                 # in right-to-left order

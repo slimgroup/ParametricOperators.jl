@@ -6,6 +6,7 @@ import Base: adjoint, kron
 using Base.Broadcast: BroadcastFunction
 using ChainRulesCore
 using Combinatorics
+using CUDA
 using DataStructures: OrderedDict, DefaultDict
 using FFTW
 using LaTeXStrings
@@ -41,6 +42,8 @@ include("ParKron.jl")
 
 # Operator definitions
 include("ParMatrix.jl")
+include("ParDiagonal.jl")
 include("ParDFT.jl")
+include("ParRestriction.jl")
 
 end

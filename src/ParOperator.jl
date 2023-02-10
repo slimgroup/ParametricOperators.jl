@@ -1,6 +1,7 @@
 export ParOperator, ParLinearOperator
 export DDT, RDT, Domain, Range, linearity, parametricity, ast_location
 export init!, init, scale!, update!
+export cpu, gpu
 export children, params
 
 # ==== Type Definitions ====
@@ -125,7 +126,25 @@ rebuild(::ParOperator{D,R,L,P,Internal}, _) where {D,R,L,P} = throw(ParException
 """
 Parameter dict typedef.
 """
-const Parameters = Dict{ParOperator,Any}
+const Parameters = Dict{<:ParOperator,Any}
+
+"""
+Move objects to cpu.
+"""
+cpu(x::CuArray{<:Number}) = Array(x)
+cpu(x::Vector{CuArray}) = [cpu(y) fpr y in x]
+cpu(x::AbstractArray) = x
+cpu(x::Parameters) = Dict(k => cpu(v) for (k, v) in pairs(x))
+
+if CUDA.functional()
+    """
+    Move objects to gpu.
+    """
+    gpu(x::AbstractArray{<:Number}) = CuArray(x)
+    gpu(x::Vector{<:AbstractArray}) = [gpu(y) fpr y in x]
+    gpu(x::CuArray) = x
+    gpu(x::Parameters) = Dict(k => gpu(v) for (k, v) in pairs(x))
+end
 
 for op in [:+, :-, :*, :/, :^]
     @eval $op(p0::Parameters, p1::Parameters) = mergewith(BroadcastFunction($op), p0, p1)
@@ -166,13 +185,14 @@ function init!(A::ParOperator{D,R,L,Parametric,Internal}, d::Parameters) where {
     for c in children(A)
         init!(c, d)
     end
+    return d
 end
 
 """
 Initialize the given operator creating a new dictionary.
 """
 function init(A::ParOperator)
-    d = Parameters()
+    d = Dict{ParOperator,Any}()
     init!(A, d)
     return d
 end

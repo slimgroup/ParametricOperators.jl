@@ -16,7 +16,7 @@ Range(A::ParMatrix) = A.m
 complexity(A::ParMatrix{T}) where {T} = elementwise_multiplication_cost(T)*A.n*A.m
 
 function init!(A::ParMatrix{T}, d::Parameters) where {T}
-    d[A] = rand(T, A.m, A.n)
+    d[A] = rand(T, A.m, A.n)/sqrt(A.m*A.n)
 end
 
 (A::ParParameterized{T,T,Linear,ParMatrix{T},V})(x::X) where {T,V,X<:AbstractVector{T}} = A.params*x
