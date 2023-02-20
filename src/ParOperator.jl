@@ -189,11 +189,13 @@ function init!(A::ParOperator{D,R,L,Parametric,Internal}, d::Parameters) where {
 end
 
 """
-Initialize the given operator creating a new dictionary.
+Initialize the given operator(s) creating a new dictionary.
 """
-function init(A::ParOperator)
+function init(As::ParOperator...)
     d = Dict{ParOperator,Any}()
-    init!(A, d)
+    for A in As
+        init!(A, d)
+    end
     return d
 end
 

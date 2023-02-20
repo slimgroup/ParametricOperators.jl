@@ -6,8 +6,9 @@ Dense matrix operator.
 struct ParMatrix{T} <: ParLinearOperator{T,T,Parametric,External}
     m::Int
     n::Int
-    ParMatrix(T, m, n) = new{T}(m, n)
-    ParMatrix(m, n) = new{Float64}(m, n)
+    id::Any
+    ParMatrix(T, m, n) = new{T}(m, n, uuid4(Random.GLOBAL_RNG))
+    ParMatrix(m, n) = new{Float64}(m, n, uuid4(Random.GLOBAL_RNG))
 end
 
 Domain(A::ParMatrix) = A.n
