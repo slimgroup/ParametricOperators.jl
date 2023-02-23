@@ -7,8 +7,10 @@ struct ParMatrix{T} <: ParLinearOperator{T,T,Parametric,External}
     m::Int
     n::Int
     id::Any
-    ParMatrix(T, m, n) = new{T}(m, n, uuid4(Random.GLOBAL_RNG))
-    ParMatrix(m, n) = new{Float64}(m, n, uuid4(Random.GLOBAL_RNG))
+    ParMatrix(T::DataType, m::Int, n::Int, id) = new{T}(m, n, id)
+    ParMatrix(m::Int, n::Int, id) = new{Float64}(m, n, id)
+    ParMatrix(T::DataType, m::Int, n::Int) = new{T}(m, n, uuid4(Random.GLOBAL_RNG))
+    ParMatrix(m::Int, n::Int) = new{Float64}(m, n, uuid4(Random.GLOBAL_RNG))
 end
 
 Domain(A::ParMatrix) = A.n
