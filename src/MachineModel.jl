@@ -33,9 +33,14 @@ Estimated cost of operator application on a vector.
 complexity(::ParOperator{D,R,L,P,External}) where {D,R,L,P} = throw(ParException("Unimplemented"))
 
 """
+A nominal cost for syntactic complexity, so that we prefer simpler solutions.
+"""
+syntactic_complexity_cost = 0.00001
+
+"""
 Complexity of operator combinations defaults to sum of child complexity.
 """
-complexity(A::ParOperator{D,R,L,P,Internal}) where {D,R,L,P} = sum(map(complexity, children(A)))
+complexity(A::ParOperator{D,R,L,P,Internal}) where {D,R,L,P} = sum(map(complexity, children(A))) + syntactic_complexity_cost
 
 """
 Complexity of an operator local to a single worker. Defaults to complexity.
