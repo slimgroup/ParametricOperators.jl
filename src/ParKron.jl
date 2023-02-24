@@ -187,53 +187,6 @@ function transforms(A::ParKron)
     end
 end
 
-"""
-Multiplication of two separable operators gives the ability to apply the mixed-product
-property.
-"""
-function transforms(A::ParCompose{D,R,Linear,P,<:AbstractVector{<:ParSeparableOperator},2}) where {D,R,P}
-
-    A_lhs = A.ops[1]
-    A_rhs = A.ops[2]
-    cs_lhs = children(A_lhs)
-    cs_rhs = children(A_rhs)
-    N = length(cs_lhs)
-
-    # If there are the same number of operators and they have matching dimensions,
-    # it is valid to apply the rule
-    if length(cs_rhs) == N && all(DDT(l) == RDT(r) && Domain(l) == Range(r) for (l, r) in zip(cs_lhs, cs_rhs))
-        return Channel() do channel
-            for select in Iterators.product([[true, false] for _ in 1:N]...)
-
-                # If no operators are selected from rhs, keep going
-                if !any(select)
-                    continue
-                end
-
-                # Move operators from rhs -> lhs, replacing rhs w/ identity
-                ops_out_lhs = [select[i] ? cs_lhs[i]*cs_rhs[i] : cs_lhs[i] for i in 1:N]
-                ops_out_rhs = [select[i] ? ParIdentity(DDT(cs_rhs[i]), Domain(cs_rhs[i])) : cs_rhs[i] for i in 1:N]
-
-                # If we moved all operators, only return lhs, otherwise return
-                # combination of both
-                if all(select)
-                    for op in transforms(rebuild(A_lhs, ops_out_lhs))
-                        put!(channel, op)
-                    end
-                else
-                    lhs_out = rebuild(A_lhs, ops_out_lhs)
-                    rhs_out = rebuild(A_rhs, ops_out_rhs)
-                    for ops in Iterators.product(transforms(lhs_out), transforms(rhs_out))
-                        put!(channel, ops[1]*ops[2])
-                    end
-                end
-            end
-        end
-    else
-        return []
-    end
-end
-
 function (A::ParKron{D,R,<:Applicable,F,N})(x::X) where {D,R,F,N,X<:AbstractMatrix{D}}
 
     # Reshape to input shape
