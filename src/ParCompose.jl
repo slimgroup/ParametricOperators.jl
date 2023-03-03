@@ -96,3 +96,10 @@ function latex_string(A::ParCompose{D,R,NonLinear,P,F,N}) where {D,R,P,F,N}
     end
     return out
 end
+
+to_Dict(A::ParCompose) = Dict{String, Any}("type" => "ParCompose", "of" => map(to_Dict, A.ops))
+
+function from_Dict(::Type{ParCompose}, d)
+    ops = map(from_Dict, d["of"])
+    ParCompose(ops...)
+end

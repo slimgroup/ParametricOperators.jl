@@ -30,3 +30,20 @@ complexity(A::ParDFT{D,R}) where {D,R} = elementwise_multiplication_cost(R)*A.n*
 (A::ParAdjoint{D,R,NonParametric,ParDFT{D,R}})(x::X) where {D<:Complex,R,X<:AbstractMatrix{R}} = ifft(x, 1).*convert(real(D), sqrt(A.op.n))
 (A::ParAdjoint{D,R,NonParametric,ParDFT{D,R}})(x::X) where {D<:Real,R,X<:AbstractMatrix{R}} = irfft(x, A.op.n, 1).*convert(D, sqrt(A.op.n))
 (A::ParAdjoint{D,R,NonParametric,ParDFT{D,R}})(x::X) where {D,R,X<:AbstractVector{R}} = vec(A(reshape(x, length(x), 1)))
+
+to_Dict(A::ParDFT{D,R}) where {D,R} = Dict{String, Any}("type" => "ParDFT", "T" => string(D), "n" => A.n, "m" => A.m)
+
+function from_Dict(::Type{ParDFT}, d)
+     ts = d["T"]
+    if !haskey(Data_TYPES, ts)
+        throw(ParException("unknown data type `$ts`"))
+    end
+    dtype = Data_TYPES[ts]
+    A = ParDFT(dtype, d["n"])
+    # the "m" is informational, but if it's present, make sure it matches
+    if haskey(d, "m") && A.m != d["m"]
+        expected_m = d["m"]
+        throw(ParException("range mismatch: data says $expected_m, but parDFT calculated $(A.m)"))
+    end
+    A
+end

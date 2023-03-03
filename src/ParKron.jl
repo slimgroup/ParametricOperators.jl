@@ -340,3 +340,16 @@ function distribute(A::ParKron, dims_in, dims_out=dims_in, parent_comm=MPI.COMM_
 
     return ParCompose(ops...)
 end
+
+to_Dict(A::ParKron) = Dict{String, Any}("type" => "ParKron", "of" => map(to_Dict, A.ops), "order" => A.order)
+
+function from_Dict(::Type{ParKron}, d)
+    ops = map(from_Dict, d["of"])
+    order = d["order"]
+
+    D = DDT(ops[order[1]])
+    R = RDT(ops[order[end]])
+    P = foldl(promote_parametricity, map(parametricity, ops))
+
+    ParKron(D,R,P,ops,order)
+end

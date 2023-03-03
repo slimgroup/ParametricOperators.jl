@@ -34,3 +34,33 @@ end
 *(x::X, A::ParParameterized{T,T,Linear,ParMatrix{T},V}) where {T,V,X<:AbstractMatrix{T}} = x*A.params
 *(x::X, A::ParParameterized{T,T,Linear,ParAdjoint{T,T,Parametric,ParMatrix{T}},V}) where {T,V,X<:AbstractVector{T}} = x*A.params[A.op.op]'
 *(x::X, A::ParParameterized{T,T,Linear,ParAdjoint{T,T,Parametric,ParMatrix{T}},V}) where {T,V,X<:AbstractMatrix{T}} = x*A.params[A.op.op]'
+
+function to_Dict(A::ParMatrix{T}) where {T}
+    rv = Dict{String, Any}(
+        "type" => "ParMatrix",
+        "T" => string(T),
+        "m" => A.m,
+        "n" => A.n
+    )
+    if typeof(A.id) == String
+        rv["id"] = A.id
+    elseif typeof(A.id) == UUID
+        rv["id"] = "UUID:$(string(A.id))"
+    else
+        throw(ParException("I don't know how to encode id of type $(typeof(A.id))"))
+    end
+    rv
+end
+
+function from_Dict(::Type{ParMatrix}, d)
+    ts = d["T"]
+    if !haskey(Data_TYPES, ts)
+        throw(ParException("unknown data type `$ts`"))
+    end
+    dtype = Data_TYPES[ts]
+    mid = d["id"]
+    if startswith(mid, "UUID:")
+        mid = UUID(mid[6:end])
+    end
+    ParMatrix(dtype, d["m"], d["n"], mid)
+end

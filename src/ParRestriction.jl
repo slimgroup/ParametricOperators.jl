@@ -41,3 +41,15 @@ end
 function (A::ParAdjoint{T,T,NonParametric,ParRestriction{T}})(y::Y) where {T,Y<:AbstractVector{T}}
     return vec(A(reshape(y, length(y), 1)))
 end
+
+to_Dict(A::ParRestriction{T}) where {T} = Dict{String, Any}("type" => "ParRestriction", "T" => string(T), "n" => A.n, "ranges" => [[a.start, a.stop] for a in A.ranges])
+
+function from_Dict(::Type{ParRestriction}, d)
+    ts = d["T"]
+    ranges = [ a[1]:a[2] for a in d["ranges"]]
+    if !haskey(Data_TYPES, ts)
+        throw(ParException("unknown data type `$ts`"))
+    end
+    dtype = Data_TYPES[ts]
+    ParRestriction(dtype, d["n"], ranges)
+end

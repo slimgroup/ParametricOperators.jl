@@ -48,4 +48,7 @@ include("ParDiagonal.jl")
 include("ParDFT.jl")
 include("ParRestriction.jl")
 
+# Operator serialization
+include("ASTSerialization.jl")
+
 end

@@ -26,3 +26,14 @@ end
 *(x::X, A::ParParameterized{T,T,Linear,ParDiagonal{T},V}) where {T,V,X<:AbstractMatrix{T}} = x.*A.params
 *(x::X, A::ParParameterized{T,T,Linear,ParAdjoint{T,T,Parametric,ParDiagonal{T}},V}) where {T,V,X<:AbstractVector{T}} = x.*conj(A.params[A.op.op])
 *(x::X, A::ParParameterized{T,T,Linear,ParAdjoint{T,T,Parametric,ParDiagonal{T}},V}) where {T,V,X<:AbstractMatrix{T}} = x.*conj(A.params[A.op.op])
+
+to_Dict(A::ParDiagonal{T}) where {T} = Dict{String, Any}("type" => "ParDiagonal", "T" => string(T), "n" => A.n)
+
+function from_Dict(::Type{ParDiagonal}, d)
+    ts = d["T"]
+    if !haskey(Data_TYPES, ts)
+        throw(ParException("unknown data type `$ts`"))
+    end
+    dtype = Data_TYPES[ts]
+    ParDiagonal(dtype, d["n"])
+end

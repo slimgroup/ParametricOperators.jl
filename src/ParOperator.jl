@@ -225,3 +225,8 @@ Apply a linear operator to a vector or matrix through multiplication.
 Apply a matrix to a linear operator. By default, use rules of the adjoint.
 """
 *(x::X, A::ParLinearOperator{D,R,<:Applicable,T}) where {D,R,T,X<:AbstractMatrix{R}} = (A'*x')'
+
+"""
+Serialize the given operator to a Dict{String, Any}, suitable for encoding to json, toml, msgpack, yaml, etc
+"""
+to_Dict(::ParOperator) = throw(ParException("Unimplemented"))
