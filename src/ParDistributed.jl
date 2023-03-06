@@ -13,24 +13,6 @@ function local_size(global_size::Int, comm_rank::Int, comm_size::Int)
     return s
 end
 
-"""
-Computes "axes" of ranges which, if `Iterators.product` was applied, would give
-the N-dimensional range corresponding to each subarray in a cartesian topology.
-Store as axes to avoid allocating a lot of memory in high processor count scenarios
-(e.g. O(3*10^3) vs O(10^9) space)
-"""
-function range_axes(dims, shape)
-    @assert length(dims) == length(shape)
-    axes = ntuple(d -> begin
-        local_sizes_d = [local_size(shape[d], i-1, dims[d]) for i in 1:dims[d]]
-        offsets = [0, cumsum(local_sizes_d[1:end-1])...]
-        starts = offsets .+ 1
-        stops = offsets .+ local_sizes_d
-        return [start:stop for (start, stop) in zip(starts, stops)]
-    end, length(dims))
-    return axes
-end
-
 struct ParDistributed{D,R,L,P,F} <: ParOperator{D,R,L,P,Internal}
     op::F
     rank::Int
