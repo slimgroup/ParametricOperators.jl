@@ -12,11 +12,11 @@ end
 Domain(A::ParParameterized) = Domain(A.op)
 Range(A::ParParameterized) = Range(A.op)
 children(A::ParParameterized) = [A.op]
-from_children(A::ParParameterized, cs) = ParParameterized(cs[1], A.params)
+rebuid(A::ParParameterized, cs) = ParParameterized(cs[1], A.params)
 adjoint(A::ParParameterized) = ParParameterized(adjoint(A.op), A.params)
 params(A::ParParameterized) = A.params
 
 """
 Parameterize an external operator with a set of params.
 """
-(A::ParParametricOperator{D,R,L,External})(params) where {D,R,L} = ParParameterized(A, params)
+(A::ParParametricOperator{D,R,L,External})(params) where {D,R,L} = ParParameterized(A, params[A])

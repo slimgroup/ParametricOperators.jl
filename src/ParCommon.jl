@@ -63,8 +63,24 @@ function local_size(global_size::Integer, rank::Integer, num_ranks::Integer)
     return s
 end
 
+function rotate_dims_batched(x, rot)
+    n = length(size(x))
+    perm = [circshift(collect(1:n-1), rot)..., n]
+    return permutedims(x, perm)
+end
+
+function as_matrix(x)
+    s = size(x)
+    return reshape(x, s[1], prod(s[2:end]))
+end
+
 """
 Allocates a buffer of zeros on the same device as the passed array.
 """
 zeros_like(::AbstractArray{T}, dims) where {T} = zeros(T, dims)
 zeros_like(::AbstractArray{T}, dims...) where {T} = zeros(T, dims...)
+
+if CUDA.functional()
+    zeros_like(::CuArray{T}, dims) where {T} = CUDA.zeros(T, dims)
+    zeros_like(::CuArray{T}, dims...) where {T} = CUDA.zeros(T, dims...)
+end

@@ -1,18 +1,19 @@
 module ParametricOperators
 
-greet() = print("Hello World!")
-
-# ==== Imports ====
-
-import Base: +, -, *, /, ∘
+import Base: +, -, *, /, ^, ∘
 import Base: adjoint, kron
 
-using Base: Iterators
+using Base.Broadcast: BroadcastFunction
 using ChainRulesCore
-using DataStructures
-using FFTW: fft, ifft
+using Combinatorics
+using CUDA
+using DataStructures: OrderedDict, DefaultDict
+using FFTW
+using LaTeXStrings
+using Match
 using MPI
-using Random: GLOBAL_RNG
+using Random
+using UUIDs
 
 # ==== Includes ====
 
@@ -21,6 +22,11 @@ include("ParCommon.jl")
 
 # Base operator definition and functionality
 include("ParOperator.jl")
+include("ParOperatorViz.jl")
+
+# Tree optimization
+include("MachineModel.jl")
+include("ASTOptimization.jl")
 
 # Operator distribution
 include("ParDistributed.jl")
@@ -28,12 +34,11 @@ include("ParBroadcasted.jl")
 include("ParRepartition.jl")
 
 # Operator wrappers
+include("ParIdentity.jl") # Include above for use in transforms, etc.
 include("ParAdjoint.jl")
 include("ParParameterized.jl")
 
 # Operator combinations
-include("ParIdentity.jl") # Include above for use in other files
-include("ParAdd.jl")
 include("ParCompose.jl")
 include("ParKron.jl")
 
@@ -42,6 +47,8 @@ include("ParMatrix.jl")
 include("ParDiagonal.jl")
 include("ParDFT.jl")
 include("ParRestriction.jl")
-# include("ParFunction.jl")
+
+# Operator serialization
+include("ASTSerialization.jl")
 
 end

@@ -11,14 +11,29 @@ end
 
 Domain(A::ParDiagonal) = A.n
 Range(A::ParDiagonal) = A.n
-nparams(A::ParDiagonal) = 1
-init(A::ParDiagonal{T}) where {T} = [rand(T, A.n)]
 
-(A::ParParameterized{T,T,Linear,ParDiagonal{T},V})(x::X) where {T,V,X<:AbstractVector{T}} = A.params[1].*x
-(A::ParParameterized{T,T,Linear,ParDiagonal{T},V})(x::X) where {T,V,X<:AbstractMatrix{T}} = A.params[1].*x
-(A::ParParameterized{T,T,Linear,ParAdjoint{T,T,Parametric,ParDiagonal{T}},V})(x::X) where {T,V,X<:AbstractVector{T}} = conj(A.params[1]).*x
-(A::ParParameterized{T,T,Linear,ParAdjoint{T,T,Parametric,ParDiagonal{T}},V})(x::X) where {T,V,X<:AbstractMatrix{T}} = conj(A.params[1]).*x
-*(x::X, A::ParParameterized{T,T,Linear,ParDiagonal{T},V}) where {T,V,X<:AbstractVector{T}} = x.*A.params[1]
-*(x::X, A::ParParameterized{T,T,Linear,ParDiagonal{T},V}) where {T,V,X<:AbstractMatrix{T}} = x.*A.params[1]
-*(x::X, A::ParParameterized{T,T,Linear,ParAdjoint{T,T,Parametric,ParDiagonal{T}},V}) where {T,V,X<:AbstractVector{T}} = x.*conj(A.params[1])
-*(x::X, A::ParParameterized{T,T,Linear,ParAdjoint{T,T,Parametric,ParDiagonal{T}},V}) where {T,V,X<:AbstractMatrix{T}} = x.*conj(A.params[1])
+complexity(A::ParDiagonal{T}) where {T} = elementwise_multiplication_cost(T)*A.n
+
+function init!(A::ParDiagonal{T}, d::Parameters) where {T}
+    d[A] = rand(T, A.n)
+end
+
+(A::ParParameterized{T,T,Linear,ParDiagonal{T},V})(x::X) where {T,V,X<:AbstractVector{T}} = A.params.*x
+(A::ParParameterized{T,T,Linear,ParDiagonal{T},V})(x::X) where {T,V,X<:AbstractMatrix{T}} = A.params.*x
+(A::ParParameterized{T,T,Linear,ParAdjoint{T,T,Parametric,ParDiagonal{T}},V})(x::X) where {T,V,X<:AbstractVector{T}} = conj(A.params[A.op.op]).*x
+(A::ParParameterized{T,T,Linear,ParAdjoint{T,T,Parametric,ParDiagonal{T}},V})(x::X) where {T,V,X<:AbstractMatrix{T}} = conj(A.params[A.op.op]).*x
+*(x::X, A::ParParameterized{T,T,Linear,ParDiagonal{T},V}) where {T,V,X<:AbstractVector{T}} = x.*A.params
+*(x::X, A::ParParameterized{T,T,Linear,ParDiagonal{T},V}) where {T,V,X<:AbstractMatrix{T}} = x.*A.params
+*(x::X, A::ParParameterized{T,T,Linear,ParAdjoint{T,T,Parametric,ParDiagonal{T}},V}) where {T,V,X<:AbstractVector{T}} = x.*conj(A.params[A.op.op])
+*(x::X, A::ParParameterized{T,T,Linear,ParAdjoint{T,T,Parametric,ParDiagonal{T}},V}) where {T,V,X<:AbstractMatrix{T}} = x.*conj(A.params[A.op.op])
+
+to_Dict(A::ParDiagonal{T}) where {T} = Dict{String, Any}("type" => "ParDiagonal", "T" => string(T), "n" => A.n)
+
+function from_Dict(::Type{ParDiagonal}, d)
+    ts = d["T"]
+    if !haskey(Data_TYPES, ts)
+        throw(ParException("unknown data type `$ts`"))
+    end
+    dtype = Data_TYPES[ts]
+    ParDiagonal(dtype, d["n"])
+end

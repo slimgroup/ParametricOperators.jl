@@ -1,25 +1,33 @@
-export ParBroadcasted
+export ParBroadcasted, bcasted
 
 struct ParBroadcasted{D,R,L,P,F} <: ParOperator{D,R,L,P,Internal}
     op::F
     comm::MPI.Comm
-    is_root::Bool
-    ParBroadcasted(op, comm) = new{DDT(op),RDT(op),linearity(op),parametricity(op),typeof(op)}(op, comm, MPI.Comm_rank(comm) == 0)
+    root::Int
+    ParBroadcasted(op, comm, root::Int = 0) = new{DDT(op),RDT(op),linearity(op),parametricity(op),typeof(op)}(op, comm, root)
 end
+
+bcasted(A::ParOperator{D,R,L,P,External}, comm = MPI.COMM_WORLD, root = 0) where {D,R,L,P} =
+    ParBroadcasted(A, comm, root)
 
 Domain(A::ParBroadcasted) = Domain(A.op)
 Range(A::ParBroadcasted) = Range(A.op)
-adjoint(A::ParBroadcasted) = ParBroadcasted(adjoint(A.op), A.comm)
-nparams(A::ParBroadcasted) = A.is_root ? nparams(A.op) : 0
-init(A::ParBroadcasted) = A.is_root ? init(A.op) : []
-params(A::ParBroadcasted) = A.is_root ? params(A.op) : []
+adjoint(A::ParBroadcasted{D,R,Linear,P,F}) where {D,R,P,F} = ParBroadcasted(adjoint(A.op), A.comm, A.root)
+
+function init!(A::ParBroadcasted, d::Parameters)
+    if MPI.Comm_rank(A.comm) == A.root
+        init!(A.op, d)
+    end
+end
 
 children(A::ParBroadcasted) = [A.op]
-from_children(A::ParBroadcasted, cs) = ParBroadcasted(cs[1], A.comm)
+rebuild(A::ParBroadcasted, cs) = ParBroadcasted(cs[1], A.comm, A.root)
 
 function (A::ParBroadcasted{D,R,L,Parametric,F})(params) where {D,R,L,F}
-    params = MPI.bcast(params, 0, A.comm)
-    return ParBroadcasted(A.op(params), A.comm)
+    @assert ast_location(A.op) == External
+    θ = MPI.Comm_rank(A.comm) == A.root ? params[A.op] : nothing
+    local_params = Parameters(A.op => MPI.bcast(θ, A.root, A.comm))
+    return ParBroadcasted(A.op(local_params), A.comm, A.root)
 end
 
 (A::ParBroadcasted{D,R,L,<:Applicable,F})(x::X) where {D,R,L,F,X<:AbstractVector{D}} = A.op(x)

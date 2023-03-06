@@ -1,6 +1,8 @@
 export ParOperator, ParLinearOperator
 export DDT, RDT, Domain, Range, linearity, parametricity, ast_location
-export children, nparams, init, from_children
+export init!, init, scale!, update!
+export cpu, gpu
+export children, params
 
 # ==== Type Definitions ====
 
@@ -20,7 +22,6 @@ promote_linearity(::Type{<:Linearity}, ::Type{<:Linearity}) = NonLinear
 """
 Typeflag for whether a given operator is parametric, nonparametric, or parameterized
 with some given parameters.
-
 Note: A distinction is made for parametric vs. parameterized to allow for proper
 method dispatch.
 """
@@ -117,41 +118,92 @@ children(::ParOperator{D,R,L,P,External}) where {D,R,L,P} = []
 children(::ParOperator{D,R,L,P,Internal}) where {D,R,L,P} = throw(ParException("Unimplemented"))
 
 """
-Number of non-const parameters of the given operator.
+Rebuild the given operator using a vector of new children.
 """
-nparams(::ParOperator{D,R,L,<:Applicable,T}) where {D,R,L,T} = 0
-nparams(A::ParOperator{D,R,L,Parametric,Internal}) where {D,R,L} = sum(map(nparams, children(A)))
+rebuild(A::ParOperator{D,R,L,P,External}, _) where {D,R,L,P} = A
+rebuild(::ParOperator{D,R,L,P,Internal}, _) where {D,R,L,P} = throw(ParException("Unimplemented"))
 
 """
-Initialize the given operator
+Parameter dict typedef.
 """
-init(::ParOperator{D,R,L,<:Applicable,T}) where {D,R,L,T} = []
-init(A::ParOperator{D,R,L,Parametric,Internal}) where {D,R,L} = collect(Iterators.flatten(map(init, children(A))))
+const Parameters = Dict{<:ParOperator,Any}
 
 """
-Rebuild the given operator from a list of children.
+Move objects to cpu.
 """
-from_children(A::ParOperator{D,R,L,P,External}, _) where {D,R,L,P} = A
-from_children(::ParOperator{D,R,L,P,Internal}, _) where {D,R,L,P} = throw(ParException("Unimplemented"))
+cpu(x::CuArray{<:Number}) = Array(x)
+cpu(x::Vector{CuArray}) = [cpu(y) fpr y in x]
+cpu(x::AbstractArray) = x
+cpu(x::Parameters) = Dict(k => cpu(v) for (k, v) in pairs(x))
+
+if CUDA.functional()
+    """
+    Move objects to gpu.
+    """
+    gpu(x::AbstractArray{<:Number}) = CuArray(x)
+    gpu(x::Vector{<:AbstractArray}) = [gpu(y) fpr y in x]
+    gpu(x::CuArray) = x
+    gpu(x::Parameters) = Dict(k => gpu(v) for (k, v) in pairs(x))
+end
+
+for op in [:+, :-, :*, :/, :^]
+    @eval $op(p0::Parameters, p1::Parameters) = mergewith(BroadcastFunction($op), p0, p1)
+    @eval $op(p0::Parameters, p1::Dict) = mergewith(BroadcastFunction($op), p0, p1)
+    @eval $op(p0::Dict, p1::Parameters) = mergewith(BroadcastFunction($op), p0, p1)
+end
+
+"""
+Update parameters with gradients.
+"""
+update!(params::Parameters, grads::Dict) = mergewith!(BroadcastFunction(-), params, grads)
+
+"""
+Scale parameters with a number.
+"""
+function scale!(a::Number, params::Dict)
+    for k in keys(params)
+        scale!(a, params[k])
+    end
+end
+
+function scale!(a::Number, x::AbstractArray{<:AbstractArray})
+    for v in x
+        scale!(a, v)
+    end
+end
+
+function scale!(a::Number, x::AbstractArray{<:Number})
+    x .*= a
+end
+
+"""
+Initialize the given operator into the given dictionary.
+"""
+init!(::ParOperator{D,R,L,<:Applicable,T}, d::Parameters) where {D,R,L,T} = nothing
+
+function init!(A::ParOperator{D,R,L,Parametric,Internal}, d::Parameters) where {D,R,L}
+    for c in children(A)
+        init!(c, d)
+    end
+    return d
+end
+
+"""
+Initialize the given operator(s) creating a new dictionary.
+"""
+function init(As::ParOperator...)
+    d = Dict{ParOperator,Any}()
+    for A in As
+        init!(A, d)
+    end
+    return d
+end
 
 """
 Parameterize the given operator
 """
-function (A::ParOperator{D,R,L,Parametric,Internal})(params) where {D,R,L}
-    param_ranges = cumranges([nparams(c) for c in children(A)])
-    cs_out = [parametricity(c) == Parametric ? c(params[r]) : c for (c, r) in zip(children(A), param_ranges)]
-    return from_children(A, cs_out)
-end
-
-"""
-Get the parameters of a given operator
-"""
-params(::ParOperator{D,R,L,NonParametric,T}) where {D,R,L,T} = []
-params(::ParOperator{D,R,L,Parametric,External}) where {D,R,L} = []
-params(A::ParOperator{D,R,L,<:Union{Parametric,Parameterized},Internal}) where {D,R,L} =
-    collect(Iterators.flatten(map(params, children(A))))
-
-# ==== Functionality Definitions ====
+(A::ParOperator{D,R,L,Parametric,Internal})(params) where {D,R,L} =
+    rebuild(A, collect(map(c -> parametricity(c) == Parametric ? c(params) : c, children(A))))
 
 """
 Apply the given operator on a vector.
@@ -173,3 +225,8 @@ Apply a linear operator to a vector or matrix through multiplication.
 Apply a matrix to a linear operator. By default, use rules of the adjoint.
 """
 *(x::X, A::ParLinearOperator{D,R,<:Applicable,T}) where {D,R,T,X<:AbstractMatrix{R}} = (A'*x')'
+
+"""
+Serialize the given operator to a Dict{String, Any}, suitable for encoding to json, toml, msgpack, yaml, etc
+"""
+to_Dict(::ParOperator) = throw(ParException("Unimplemented"))
