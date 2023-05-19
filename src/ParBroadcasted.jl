@@ -26,10 +26,23 @@ rebuild(A::ParBroadcasted, cs) = ParBroadcasted(cs[1], A.comm, A.root)
 function (A::ParBroadcasted{D,R,L,Parametric,F})(params) where {D,R,L,F}
     @assert ast_location(A.op) == External
     θ = MPI.Comm_rank(A.comm) == A.root ? params[A.op] : nothing
-    local_params = Parameters(A.op => MPI.bcast(θ, A.root, A.comm))
+    local_params = Dict(A.op => MPI.bcast(θ, A.root, A.comm))
     return ParBroadcasted(A.op(local_params), A.comm, A.root)
 end
 
 (A::ParBroadcasted{D,R,L,<:Applicable,F})(x::X) where {D,R,L,F,X<:AbstractVector{D}} = A.op(x)
 (A::ParBroadcasted{D,R,L,<:Applicable,F})(x::X) where {D,R,L,F,X<:AbstractMatrix{D}} = A.op(x)
 *(x::X, A::ParBroadcasted{D,R,Linear,<:Applicable,F}) where {D,R,F,X<:AbstractMatrix{D}} = x*A.op
+
+function ChainRulesCore.rrule(A::ParBroadcasted{D,R,L,Parametric,F}, params) where {D,R,L,F}
+    op_out = A(params)
+    function pullback(op)
+        θ_global = [MPI.Reduce(θ, MPI.SUM, op.root, op.comm) for θ in op.op.params]
+        if MPI.Comm_rank(op.comm) == op.root
+            return NoTangent(), θ_global
+        else
+            return NoTangent(), NoTangent()
+        end
+    end
+    return op_out, pullback
+end

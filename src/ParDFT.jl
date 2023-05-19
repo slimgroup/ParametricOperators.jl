@@ -1,4 +1,4 @@
-export ParDFT
+export ParDFT, ParDFTN
 
 """
 Fouier transform operator. Dispatchs real-valued fft if applicable.
@@ -47,3 +47,24 @@ function from_Dict(::Type{ParDFT}, d)
     end
     A
 end
+
+"""
+Fouier transform operator for n dimensional tensor.
+"""
+struct ParDFTN{N,T} <: ParLinearOperator{T,T,NonParametric,External}
+    shape::NTuple{N, Int}
+    n:: Int
+    ParDFTN(ns...; T = ComplexF32) = new{length(ns),T}(ns, prod(ns))
+end
+
+Domain(A::ParDFTN) = A.n
+Range(A::ParDFTN) = A.n
+
+(A::ParDFTN{N,T})(x::X) where {N,T<:Complex,X<:AbstractVector{T}} = vec(fft(reshape(x, A.shape)) ./ T(sqrt(A.n)))
+
+(A::ParAdjoint{D,R,NonParametric,ParDFTN{N,T}})(x::X) where {D<:Complex,R,N,T<:Complex,X<:AbstractVector{T}} = vec(ifft(reshape(x, A.op.shape)) .* T(sqrt(A.op.n)))
+
+kron(A::ParDFT{T,T}, B::ParDFT{T,T}) where {T} = ParDFTN(B.n, A.n, T=T)
+kron(A::ParDFT{T,T}, B::ParDFTN{N,T}) where {N,T} = ParDFTN(B.shape..., A.n, T=T)
+kron(A::ParDFTN{N,T}, B::ParDFT{T,T}) where {N,T} = ParDFTN(B.n, A.shape..., T=T)
+kron(A::ParDFTN{N,T}, B::ParDFTN{M,T}) where {M,N,T} = ParDFTN(B.shape..., A.shape..., T=T)

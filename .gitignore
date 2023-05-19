@@ -6,3 +6,5 @@ examples/.ipynb_checkpoints
 *.svg
 *.png
 *.dot
+*.mat
+.DS_Store

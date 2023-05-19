@@ -37,3 +37,8 @@ function from_Dict(::Type{ParDiagonal}, d)
     dtype = Data_TYPES[ts]
     ParDiagonal(dtype, d["n"])
 end
+
+function distribute(A::ParDiagonal{T}, comm::MPI.Comm = MPI.COMM_WORLD) where {T}
+    local_n = local_size(A.n, MPI.Comm_rank(comm), MPI.Comm_size(comm))
+    return ParDiagonal(T, local_n)
+end

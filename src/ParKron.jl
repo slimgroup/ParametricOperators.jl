@@ -63,7 +63,7 @@ struct ParKron{D,R,P,F,N} <: ParSeparableOperator{D,R,P,Internal}
         return new{D,R,P,typeof(ops),N}(ops, order)
     end
 
-    function ParKron(D,R,P,ops,order)
+    function ParKron(D::DataType,R::DataType,P,ops,order)
         return new{D,R,P,typeof(ops),length(ops)}(ops, order)
     end
 end
@@ -254,8 +254,6 @@ function distribute(A::ParKron, dims_in, dims_out=dims_in, parent_comm=MPI.COMM_
     ops = []
 
     for i in 1:N
-
-        @show size_curr
 
         # Get operator i
         o = A.order[i]
