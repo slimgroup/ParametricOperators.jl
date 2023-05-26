@@ -86,10 +86,34 @@ kron(A::ParRestriction{T}, B::ParRestrictionN{N, T}) where {N, T} = ParRestricti
 kron(A::ParRestrictionN{N, T}, B::ParRestriction{T}) where {N, T} = ParRestrictionN(T, (B.n, A.shape...), [vec(hcat(B.ranges...)), A.ranges...])
 kron(A::ParRestrictionN{M, T}, B::ParRestrictionN{N, T}) where {M, N, T} = ParRestrictionN(T, (B.shape..., A.shape...), [B.ranges..., A.ranges...])
 
-# function ChainRulesCore.rrule(A::ParRestrictionN{T}, params) where {T}
-#     op_out = A(params)
-#     function pullback(op)
-#
-#     end
-#     return op_out, pullback
-# end
+function ChainRulesCore.rrule(A::ParRestrictionN{N, T}, x::X) where {N,T,X<:AbstractVector{T}}
+    op_out = A(x)
+    function pullback(op)
+        return (NoTangent(), A'(op))
+    end
+    return op_out, pullback
+end
+
+function ChainRulesCore.rrule(A::ParAdjoint{T,T,NonParametric,ParRestrictionN{N,T}}, x::X) where {N,T,X<:AbstractVector{T}}
+    op_out = A(x)
+    function pullback(op)
+        return (NoTangent(), A.op(op))
+    end
+    return op_out, pullback
+end
+
+function ChainRulesCore.rrule(A::ParRestriction{T}, x::X) where {T,X<:AbstractMatrix{T}}
+    op_out = A(x)
+    function pullback(op)
+        return (NoTangent(), A'(op))
+    end
+    return op_out, pullback
+end
+
+function ChainRulesCore.rrule(A::ParAdjoint{T,T,NonParametric,ParRestriction{T}}, x::X) where {T,X<:AbstractMatrix{T}}
+    op_out = A(x)
+    function pullback(op)
+        return (NoTangent(), A.op(op))
+    end
+    return op_out, pullback
+end

@@ -6,6 +6,8 @@ using MAT
 using Shuffle
 using Zygote
 using Flux
+using PyPlot
+using DrWatson
 
 @with_kw struct ModelConfig
     nx::Int
@@ -107,7 +109,7 @@ network = dfno(config)
 data = matread("./examples/ns_V1e-3_N5000_T50.mat")["u"]
 data = reshape(data, :, config.nc_in, config.nx, config.ny, config.nz, config.nt_in + config.nt_out)
 
-n_data = 1 # 5000
+n_data = 1
 n_epochs = 1
 batch_size = 1
 step_length = 1e-3
@@ -122,8 +124,46 @@ for _ in 1:n_epochs
         x_train = vec(data[batch, :, :, :, :, 1:config.nt_in])
         y_train = vec(data[batch, :, :, :, :, config.nt_in+1:end])
 
-        grads = gradient(params -> Flux.mse(network(params)*x_train, y_train), θ)
-        # scale!(step_length, grads)
-        # update!(θ, grads)
+        grads = gradient(params -> Flux.mse(network(params)*x_train, y_train), θ)[1]
+        
+        scale!(step_length, grads)
+        update!(θ, grads)
     end
 end
+
+fig = figure(figsize=(20, 12))
+
+for i = 1:5
+
+    j = i + n_data
+
+    x_sample = vec(data[j, :, :, :, :, 1:config.nt_in])
+    y_sample = network(θ)*x_sample
+    y_sample = reshape(y_sample, 64, 64, 40)
+
+    subplot(4,5,i)
+    imshow(reshape(data[j, :, :, :, :, 1], 64, 64))
+    title("x")
+
+    subplot(4,5,i+5)
+    imshow(reshape(data[j, :, :, :, :, 50], 64, 64), vmin=0, vmax=1)
+    title("true y")
+
+    subplot(4,5,i+10)
+    imshow(reshape(y_sample[:, :, 40], 64, 64), vmin=0, vmax=1)
+    title("predict y")
+
+    subplot(4,5,i+15)
+    imshow(5f0 .* reshape(abs.(vec(data[j, :, :, :, :, 50])-vec(y_sample[:, :, 40])), 64, 64), vmin=0, vmax=1)
+    title("5X abs difference")
+
+end
+tight_layout()
+
+sim_name = "2D_FNO"
+exp_name = "navier_stokes"
+save_dict = @strdict exp_name
+plot_path = "./plots" # plotsdir(sim_name, savename(save_dict; digits=6))
+fig_name = @strdict n_epochs batch_size # Loss modes width learning_rate epochs s n d nt dt AN ntrain nvalid
+safesave(joinpath(plot_path, savename(fig_name; digits=6)*"_2D_dfno.png"), fig);
+close(fig)
