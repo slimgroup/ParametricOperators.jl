@@ -23,12 +23,14 @@ Range(A::ParDFT) = A.m
 
 complexity(A::ParDFT{D,R}) where {D,R} = elementwise_multiplication_cost(R)*A.n*log2(A.n)
 
-(A::ParDFT{D,R})(x::X) where {D<:Complex,R,X<:AbstractMatrix{D}} = convert(Matrix{R}, fft(x, 1) ./ sqrt(A.n))
-(A::ParDFT{D,R})(x::X) where {D<:Real,R,X<:AbstractMatrix{D}} = convert(Matrix{R}, rfft(x, 1) ./ sqrt(A.n))
+# TODO: Address scaling constants
+
+(A::ParDFT{D,R})(x::X) where {D<:Complex,R,X<:AbstractMatrix{D}} = convert(Matrix{R}, fft(x, 1)) # ./ sqrt(A.n)
+(A::ParDFT{D,R})(x::X) where {D<:Real,R,X<:AbstractMatrix{D}} = convert(Matrix{R}, rfft(x, 1)) #  ./ sqrt(A.n)
 (A::ParDFT{D,R})(x::X) where {D,R,X<:AbstractVector{D}} = vec(A(reshape(x, length(x), 1)))
 
-(A::ParAdjoint{D,R,NonParametric,ParDFT{D,R}})(x::X) where {D<:Complex,R,X<:AbstractMatrix{R}} = ifft(x, 1).*convert(real(D), sqrt(A.op.n))
-(A::ParAdjoint{D,R,NonParametric,ParDFT{D,R}})(x::X) where {D<:Real,R,X<:AbstractMatrix{R}} = irfft(x, A.op.n, 1).*convert(D, sqrt(A.op.n))
+(A::ParAdjoint{D,R,NonParametric,ParDFT{D,R}})(x::X) where {D<:Complex,R,X<:AbstractMatrix{R}} = ifft(x, 1) # .* convert(real(D), sqrt(A.op.n))
+(A::ParAdjoint{D,R,NonParametric,ParDFT{D,R}})(x::X) where {D<:Real,R,X<:AbstractMatrix{R}} = irfft(x, A.op.n, 1) # .* convert(D, sqrt(A.op.n))
 (A::ParAdjoint{D,R,NonParametric,ParDFT{D,R}})(x::X) where {D,R,X<:AbstractVector{R}} = vec(A(reshape(x, length(x), 1)))
 
 to_Dict(A::ParDFT{D,R}) where {D,R} = Dict{String, Any}("type" => "ParDFT", "T" => string(D), "n" => A.n, "m" => A.m)
@@ -60,9 +62,10 @@ end
 Domain(A::ParDFTN) = A.n
 Range(A::ParDFTN) = A.n
 
-(A::ParDFTN{N,T})(x::X) where {N,T<:Complex,X<:AbstractVector{T}} = vec(fft(reshape(x, A.shape)) ./ T(sqrt(A.n)))
+# TODO: Address scaling constants
 
-(A::ParAdjoint{D,R,NonParametric,ParDFTN{N,T}})(x::X) where {D<:Complex,R,N,T<:Complex,X<:AbstractVector{T}} = vec(ifft(reshape(x, A.op.shape)) .* T(sqrt(A.op.n)))
+(A::ParDFTN{N,T})(x::X) where {N,T<:Complex,X<:AbstractVector{T}} = vec(fft(reshape(x, A.shape))) # ./ T(sqrt(A.n)))
+(A::ParAdjoint{D,R,NonParametric,ParDFTN{N,T}})(x::X) where {D<:Complex,R,N,T<:Complex,X<:AbstractVector{T}} = vec(ifft(reshape(x, A.op.shape))) # .* T(sqrt(A.op.n)))
 
 kron(A::ParDFT{T,T}, B::ParDFT{T,T}) where {T} = ParDFTN(B.n, A.n, T=T)
 kron(A::ParDFT{T,T}, B::ParDFTN{N,T}) where {N,T} = ParDFTN(B.shape..., A.n, T=T)
