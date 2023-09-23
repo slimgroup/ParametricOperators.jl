@@ -202,8 +202,12 @@ end
 """
 Parameterize the given operator
 """
-(A::ParOperator{D,R,L,Parametric,Internal})(params) where {D,R,L} =
-    rebuild(A, collect(map(c -> parametricity(c) == Parametric ? c(params) : c, children(A))))
+function (A::ParOperator{D,R,L,Parametric,Internal})(params) where {D,R,L}
+    # println("rbuh, ", Range(A), " x ", Domain(A))
+    # println(length(children(A)))
+    return rebuild(A, collect(map(c -> parametricity(c) == Parametric ? c(params) : c, children(A))))
+end
+
 
 """
 Apply the given operator on a vector.

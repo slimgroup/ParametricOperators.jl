@@ -15,7 +15,8 @@ Range(A::ParDiagonal) = A.n
 complexity(A::ParDiagonal{T}) where {T} = elementwise_multiplication_cost(T)*A.n
 
 function init!(A::ParDiagonal{T}, d::Parameters) where {T}
-    d[A] = rand(T, A.n)
+    d[A] = zeros(T, A.n)
+    # d[A] = rand(T, A.n)
 end
 
 (A::ParParameterized{T,T,Linear,ParDiagonal{T},V})(x::X) where {T,V,X<:AbstractVector{T}} = A.params.*x

@@ -43,7 +43,13 @@ adjoint(A::ParCompose{D,R,Linear,P,F,N}) where {D,R,P,F,N} = ParCompose(reverse(
 
 function (A::ParCompose{D,R,L,<:Applicable,F,N})(x::X) where {D,R,L,F,N,X<:AbstractVector{D}}
     for i in 1:N
+        # if state == 0
+        #     println("Pre composition at op ", i, x)
+        # end
         x = A.ops[N-i+1](x)
+        # if state == 0
+        #     println("Post composition at op ", i, x)
+        # end
     end
     return x
 end

@@ -81,10 +81,10 @@ function (A::ParAdjoint{T,T,NonParametric,ParRestrictionN{N,T}})(y::Y) where {N,
     return x
 end
 
-kron(A::ParRestriction{T}, B::ParRestriction{T}) where {T} = ParRestrictionN(T, (B.n, A.n), [vec(hcat(B.ranges...)), vec(hcat(A.ranges...))])
-kron(A::ParRestriction{T}, B::ParRestrictionN{N, T}) where {N, T} = ParRestrictionN(T, (B.shape..., A.n), [B.ranges..., vec(hcat(A.ranges...))])
-kron(A::ParRestrictionN{N, T}, B::ParRestriction{T}) where {N, T} = ParRestrictionN(T, (B.n, A.shape...), [vec(hcat(B.ranges...)), A.ranges...])
-kron(A::ParRestrictionN{M, T}, B::ParRestrictionN{N, T}) where {M, N, T} = ParRestrictionN(T, (B.shape..., A.shape...), [B.ranges..., A.ranges...])
+# kron(A::ParRestriction{T}, B::ParRestriction{T}) where {T} = ParRestrictionN(T, (B.n, A.n), [vec(hcat(B.ranges...)), vec(hcat(A.ranges...))])
+# kron(A::ParRestriction{T}, B::ParRestrictionN{N, T}) where {N, T} = ParRestrictionN(T, (B.shape..., A.n), [B.ranges..., vec(hcat(A.ranges...))])
+# kron(A::ParRestrictionN{N, T}, B::ParRestriction{T}) where {N, T} = ParRestrictionN(T, (B.n, A.shape...), [vec(hcat(B.ranges...)), A.ranges...])
+# kron(A::ParRestrictionN{M, T}, B::ParRestrictionN{N, T}) where {M, N, T} = ParRestrictionN(T, (B.shape..., A.shape...), [B.ranges..., A.ranges...])
 
 function ChainRulesCore.rrule(A::ParRestrictionN{N, T}, x::X) where {N,T,X<:AbstractVector{T}}
     op_out = A(x)
