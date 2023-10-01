@@ -134,6 +134,7 @@ end
 # TODO: Add rest of the functionality and abstract usage of einsum to another controller
 
 (A::ParParameterized{T,T,Linear,ParMatrixN{N,M,O,T},V})(x::X) where {N,M,O,T,V,X<:AbstractVector{T}} = vec(einsum(EinCode((A.op.weight_order,A.op.input_order),A.op.target_order),(A.params,reshape(x, A.op.input_shape))))
+# (A::ParParameterized{T,T,Linear,ParMatrixN{N,M,O,T},V})(x::X) where {N,M,O,T,V,X<:AbstractVector{T}} = vec(einsum(EinCode((A.op.weight_order,A.op.input_order),A.op.target_order),(A.params |> cpu,reshape(x, A.op.input_shape) |> cpu))) |> gpu
 # (A::ParParameterized{T,T,Linear,ParMatrixN{N,M,O,T},V})(x::X) where {N,M,O,T,V,X<:AbstractMatrix{T}} = A.params*x
 # (A::ParParameterized{T,T,Linear,ParAdjoint{T,T,Parametric,ParMatrixN{N,M,O,T}},V})(x::X) where {N,M,O,T,V,X<:AbstractVector{T}} = A.params[A.op.op]'*x
 # (A::ParParameterized{T,T,Linear,ParAdjoint{T,T,Parametric,ParMatrixN{N,M,O,T}},V})(x::X) where {N,M,O,T,V,X<:AbstractMatrix{T}} = A.params[A.op.op]'*x

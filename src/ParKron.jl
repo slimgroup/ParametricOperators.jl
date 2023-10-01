@@ -200,27 +200,34 @@ end
 function (A::ParKron{D,R,<:Applicable,F,N})(x::X) where {D,R,F,N,X<:AbstractMatrix{D}}
     # println("Here")
     # Reshape to inpu t shape
+    # println("0:", typeof(x))
     b = size(x)[2]
     s = reverse(collect(map(Domain, A.ops)))
     # println(s)
     x = reshape(x, s..., b)
+    # println("0.5:", typeof(x))
 
     # Apply operators in order, permuting to enforce leading dim of x to
     # align with current operator
     x = rotate_dims_batched(x, -(N-A.order[1]))
-
+    # println("1:", typeof(x))
     for i in 1:N
         o = A.order[i]
         s = size(x)
         x = as_matrix(x)
+        # println("2:", typeof(x))
         Ai = A.ops[o]
+        # println("3:", typeof(x), typeof(Ai))
         x = Ai*x
+        # println("4:", typeof(x))
         x = reshape(x, Range(Ai), s[2:end]...)
+        # println("5:", typeof(x))
         if i < N
             x = rotate_dims_batched(x, N-o-(N-A.order[i+1]))
         else
             x = rotate_dims_batched(x, o)
         end
+        # println("6:", typeof(x))
     end
 
     nelem = prod(size(x))
