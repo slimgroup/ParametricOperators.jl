@@ -250,17 +250,18 @@ function distribute(A::ParKron, dims_in, dims_out=dims_in, parent_comm=MPI.COMM_
 
     size_curr = collect(map(Domain, reverse(A.ops)))
     comm_prev = comm_in
+    dims_prev = dims
 
     ops = []
 
     for i in 1:N
 
-        @show size_curr
-
         # Get operator i
         o = A.order[i]
         d = N-o+1
         Ai = A.ops[o]
+
+        (typeof(Ai) <: ParIdentity) && continue
 
         # Compute size of dims for communicator
         dims_i = copy(dims)
@@ -270,7 +271,7 @@ function distribute(A::ParKron, dims_in, dims_out=dims_in, parent_comm=MPI.COMM_
         coords_i = MPI.Cart_coords(comm_i)
 
         # Create repartition operator
-        pushfirst!(ops, ParRepartition(DDT(Ai), comm_prev, comm_i, tuple(size_curr...)))
+        !isequal(dims_prev, dims_i) && pushfirst!(ops, ParRepartition(DDT(Ai), comm_prev, comm_i, tuple(size_curr...)))
 
         # Create Kronecker w/ distributed identities
         idents_dim_lower = []
@@ -287,9 +288,10 @@ function distribute(A::ParKron, dims_in, dims_out=dims_in, parent_comm=MPI.COMM_
 
         size_curr[d] = Range(Ai)
         comm_prev = comm_i
+        dims_prev = dims_i
     end
 
-    pushfirst!(ops, ParRepartition(RDT(A.ops[A.order[end]]), comm_prev, comm_out, tuple(size_curr...)))
+    !isequal(dims_prev, dims_out) && pushfirst!(ops, ParRepartition(RDT(A.ops[A.order[end]]), comm_prev, comm_out, tuple(size_curr...)))
 
     return ParCompose(ops...)
 end

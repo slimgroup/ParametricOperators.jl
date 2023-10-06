@@ -26,7 +26,7 @@ rebuild(A::ParBroadcasted, cs) = ParBroadcasted(cs[1], A.comm, A.root)
 function (A::ParBroadcasted{D,R,L,Parametric,F})(params) where {D,R,L,F}
     @assert ast_location(A.op) == External
     θ = MPI.Comm_rank(A.comm) == A.root ? params[A.op] : nothing
-    local_params = Parameters(A.op => MPI.bcast(θ, A.root, A.comm))
+    local_params = Dict(A.op => MPI.bcast(θ, A.root, A.comm))
     return ParBroadcasted(A.op(local_params), A.comm, A.root)
 end
 
