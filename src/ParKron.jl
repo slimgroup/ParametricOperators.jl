@@ -198,39 +198,51 @@ function transforms(A::ParKron)
 end
 
 function (A::ParKron{D,R,<:Applicable,F,N})(x::X) where {D,R,F,N,X<:AbstractMatrix{D}}
-    # println("Here")
+    # comm = MPI.COMM_WORLD
+    # rank = MPI.Comm_rank(comm)
+    # rank == 0 && println(x)
+    # rank == 0 && println("Here")
     # Reshape to inpu t shape
-    # println("0:", typeof(x))
+    # rank == 0 && println("0:", typeof(x))
     b = size(x)[2]
     s = reverse(collect(map(Domain, A.ops)))
-    # println(s)
+    # rank == 0 && println("Size: ", s)
     x = reshape(x, s..., b)
-    # println("0.5:", typeof(x))
+    # rank == 0 && println("0.5:", typeof(x))
 
     # Apply operators in order, permuting to enforce leading dim of x to
     # align with current operator
+    # rank == 0 && println("Pre Rotation: ", x)
     x = rotate_dims_batched(x, -(N-A.order[1]))
-    # println("1:", typeof(x))
+    # rank == 0 && println("Post rotation: ", x)
+    # rank == 0 && println("1:", typeof(x))
+    # rank == 0 && println("Starting Loop")
     for i in 1:N
         o = A.order[i]
         s = size(x)
         x = as_matrix(x)
-        # println("2:", typeof(x))
+        # rank == 0 && println("2:", typeof(x))
         Ai = A.ops[o]
-        # println("3:", typeof(x), typeof(Ai))
+        # rank == 0 && println(i, " ", x, " ", typeof(Ai), " ", Range(Ai), "x", Domain(Ai))
+        # rank == 0 && println("3:", typeof(x), typeof(Ai))
         x = Ai*x
-        # println("4:", typeof(x))
+        # rank == 0 && println(i, " Post operation: ", x)
+        # rank == 0 && println("4:", typeof(x))
         x = reshape(x, Range(Ai), s[2:end]...)
-        # println("5:", typeof(x))
+        # rank == 0 && println("5:", typeof(x))
         if i < N
+            # rank == 0 && println("rotation around: ", N-o-(N-A.order[i+1]))
             x = rotate_dims_batched(x, N-o-(N-A.order[i+1]))
         else
-            x = rotate_dims_batched(x, o)
+            # rank == 0 && println("rotation around: ", -o)
+            x = rotate_dims_batched(x, -o)
         end
-        # println("6:", typeof(x))
+        # rank == 0 && println(i, " ", reshape(x, 4, 1))
+        # rank == 0 && println("6:", typeof(x))
     end
 
     nelem = prod(size(x))
+    # rank == 0 && println(reshape(x, nelem÷b, b))
     return reshape(x, nelem÷b, b)
 end
 
@@ -270,6 +282,8 @@ Distributes Kronecker product over the given communicator
 function distribute(A::ParKron, comm_in::MPI.Comm, comm_out::MPI.Comm, parent_comm=MPI.COMM_WORLD)
 
     dims, _, _ = MPI.Cart_get(comm_in)
+    dims_out, _, _ = MPI.Cart_get(comm_out)
+
     N = length(dims)
     @assert length(A.ops) == N
 
@@ -280,7 +294,7 @@ function distribute(A::ParKron, comm_in::MPI.Comm, comm_out::MPI.Comm, parent_co
     ops = []
 
     # if MPI.Comm_rank(comm_in) == 0
-    #     println(size_curr, A.order)
+        # println(size_curr, A.order)
     # end
 
     for i in 1:N
@@ -295,27 +309,27 @@ function distribute(A::ParKron, comm_in::MPI.Comm, comm_out::MPI.Comm, parent_co
         dims_i[d] = 1
         dims_i[mod1(d+1, N)] *= dims[d]
         # if MPI.Comm_rank(comm_in) == 0 # Move the distribution for i th operator to the i+1 th operator
-        #     println(d)
-        #     println(dims_i)
+            # println(d)
+            # println(dims_i)
         # end
         comm_i = MPI.Cart_create(parent_comm, dims_i)
+        rank = MPI.Comm_rank(comm_i)
         coords_i = MPI.Cart_coords(comm_i)
         # if MPI.Comm_rank(comm_in) == 1 # Move the distribution for i th operator to the i+1 th operator
-        #     println(coords_i)
+            # println(coords_i)
         # end
 
-        MPI.Comm_rank(comm_in) == 0 && println("Iteration: ", i, ". d: ", d, " ", dims_prev, " ", dims_i, " ", typeof(Ai))
+        MPI.Comm_rank(comm_in) == 0 && println("Iteration: ", i, ". d: ", d, " ", dims_i, " ", typeof(Ai))
 
-        # # Skip this iteration if it does nothing: isequal(dims_prev, dims_i) &&  ?? 
-        # (typeof(Ai) <: ParIdentity) && (MPI.Comm_rank(comm_in) == 0) && println("Skipping loop at Iter: ", i)
-        # (typeof(Ai) <: ParIdentity) && continue
+        # Skip this iteration if it does nothing
+        (typeof(Ai) <: ParIdentity) && (MPI.Comm_rank(comm_in) == 0) && println("Skipping loop at Iter: ", i)
+        (typeof(Ai) <: ParIdentity) && continue
 
         # Create repartition operator if data is distributed differently than expected
-        # isequal(dims_prev, dims_i) && 
-        pushfirst!(ops, ParRepartition(DDT(Ai), comm_prev, comm_i, tuple(size_curr...)))
+        !isequal(dims_prev, dims_i) && pushfirst!(ops, ParRepartition(DDT(Ai), comm_prev, comm_i, tuple(size_curr...)))
 
         # if MPI.Comm_rank(comm_in) == 0
-        #     println(length(ops))
+            # println(length(ops))
         # end
         # Create Kronecker w/ distributed identities
         idents_dim_lower = []
@@ -324,23 +338,28 @@ function distribute(A::ParKron, comm_in::MPI.Comm, comm_out::MPI.Comm, parent_co
         for j in d+1:N
             # println(size_curr[j], " Lower @ Rank ", MPI.Comm_rank(comm_i))
             pushfirst!(idents_dim_lower, ParDistributed(ParIdentity(DDT(Ai), size_curr[j]), coords_i[j], dims_i[j]))
+            rank == 0 && println("Lower: ", Range(idents_dim_lower[1]), "x", Domain(idents_dim_lower[1]))
         end
         for j in 1:d-1
             # println(size_curr[j], " Upper @ Rank ", MPI.Comm_rank(comm_i))
             pushfirst!(idents_dim_upper, ParDistributed(ParIdentity(DDT(Ai), size_curr[j]), coords_i[j], dims_i[j]))
+            rank == 0 && println("Upper: ", Range(idents_dim_upper[1]), "x", Domain(idents_dim_upper[1]))
         end
 
-        pushfirst!(ops, ParKron(idents_dim_upper..., ParBroadcasted(Ai, comm_i), idents_dim_lower...))
+        rank == 0 && println("Actual: ", Range(Ai), "x", Domain(Ai))
+
+        pushfirst!(ops, ParKron(idents_dim_lower..., ParBroadcasted(Ai, comm_i), idents_dim_upper...))
 
         size_curr[d] = Range(Ai)
         comm_prev = comm_i
+        dims_prev = dims_i
     end
 
-    pushfirst!(ops, ParRepartition(RDT(A.ops[A.order[end]]), comm_prev, comm_out, tuple(size_curr...)))
+    !isequal(dims_prev, dims_out) && pushfirst!(ops, ParRepartition(RDT(A.ops[A.order[end]]), comm_prev, comm_out, tuple(size_curr...)))
 
     # for op in ops
     #     if MPI.Comm_rank(comm_prev) == 0
-    #         println(Range(op), " x ", Domain(op))
+            # println(Range(op), " x ", Domain(op))
     #     end
     # end
     return ParCompose(ops...)

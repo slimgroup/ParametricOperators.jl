@@ -27,15 +27,11 @@ complexity(A::ParMatrix{T}) where {T} = elementwise_multiplication_cost(T)*A.n*A
 function init!(A::ParMatrix{T}, d::Parameters) where {T<:Real}
 
     # G = zeros(A.n, A.m)
-    # if A.state == 0
-    #     G[1, :] = [1, 2]
-    #     G[2, :] = [3, 4]
-    # else
-    #     G[1, :] = [5, 10]
-    #     G[2, :] = [15, 20]
-    # end
+    # G[1, :] = [1, 2]
+    # G[2, :] = [3, 4]
     # G = Float64.(G)
     # d[A] = G
+    # return
 
     rng = Random.seed!(1234)
 
