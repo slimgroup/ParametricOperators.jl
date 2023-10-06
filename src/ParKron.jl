@@ -208,7 +208,7 @@ function (A::ParKron{D,R,<:Applicable,F,N})(x::X) where {D,R,F,N,X<:AbstractMatr
         if i < N
             x = rotate_dims_batched(x, N-o-(N-A.order[i+1]))
         else
-            x = rotate_dims_batched(x, o)
+            x = rotate_dims_batched(x, -o)
         end
     end
 
@@ -283,7 +283,7 @@ function distribute(A::ParKron, dims_in, dims_out=dims_in, parent_comm=MPI.COMM_
             pushfirst!(idents_dim_upper, ParDistributed(ParIdentity(DDT(Ai), size_curr[j]), coords_i[j], dims_i[j]))
         end
 
-        pushfirst!(ops, ParKron(idents_dim_upper..., ParBroadcasted(Ai, comm_i), idents_dim_lower...))
+        pushfirst!(ops, ParKron(idents_dim_lower..., ParBroadcasted(Ai, comm_i), idents_dim_upper...))
 
         size_curr[d] = Range(Ai)
         comm_prev = comm_i
