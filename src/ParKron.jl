@@ -319,10 +319,10 @@ function distribute(A::ParKron, comm_in::MPI.Comm, comm_out::MPI.Comm, parent_co
             # println(coords_i)
         # end
 
-        MPI.Comm_rank(comm_in) == 0 && println("Iteration: ", i, ". d: ", d, " ", dims_i, " ", typeof(Ai))
+        # MPI.Comm_rank(comm_in) == 0 && println("Iteration: ", i, ". d: ", d, " ", dims_i, " ", typeof(Ai))
 
-        # Skip this iteration if it does nothing
-        (typeof(Ai) <: ParIdentity) && (MPI.Comm_rank(comm_in) == 0) && println("Skipping loop at Iter: ", i)
+        # # Skip this iteration if it does nothing
+        # (typeof(Ai) <: ParIdentity) && (MPI.Comm_rank(comm_in) == 0) && println("Skipping loop at Iter: ", i)
         (typeof(Ai) <: ParIdentity) && continue
 
         # Create repartition operator if data is distributed differently than expected
@@ -338,15 +338,15 @@ function distribute(A::ParKron, comm_in::MPI.Comm, comm_out::MPI.Comm, parent_co
         for j in d+1:N
             # println(size_curr[j], " Lower @ Rank ", MPI.Comm_rank(comm_i))
             pushfirst!(idents_dim_lower, ParDistributed(ParIdentity(DDT(Ai), size_curr[j]), coords_i[j], dims_i[j]))
-            rank == 0 && println("Lower: ", Range(idents_dim_lower[1]), "x", Domain(idents_dim_lower[1]))
+            # rank == 0 && println("Lower: ", Range(idents_dim_lower[1]), "x", Domain(idents_dim_lower[1]))
         end
         for j in 1:d-1
             # println(size_curr[j], " Upper @ Rank ", MPI.Comm_rank(comm_i))
             pushfirst!(idents_dim_upper, ParDistributed(ParIdentity(DDT(Ai), size_curr[j]), coords_i[j], dims_i[j]))
-            rank == 0 && println("Upper: ", Range(idents_dim_upper[1]), "x", Domain(idents_dim_upper[1]))
+            # rank == 0 && println("Upper: ", Range(idents_dim_upper[1]), "x", Domain(idents_dim_upper[1]))
         end
 
-        rank == 0 && println("Actual: ", Range(Ai), "x", Domain(Ai))
+        # rank == 0 && println("Actual: ", Range(Ai), "x", Domain(Ai))
 
         pushfirst!(ops, ParKron(idents_dim_lower..., ParBroadcasted(Ai, comm_i), idents_dim_upper...))
 
