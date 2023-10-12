@@ -174,6 +174,10 @@ end
 function distribute(A::ParMatrixN{N,M,O,T}, dims_in, comm::MPI.Comm = MPI.COMM_WORLD) where {N,M,O,T}
 
     @assert length(dims_in) == length(A.input_shape)
+
+    comm_cart = MPI.Cart_create(comm, dims_in)
+    coords = MPI.Cart_coords(comm_cart)
+
     # TODO: Also assert comm size and dims_in product
 
     combined_tuples = tuple(A.input_order..., A.weight_order..., A.target_order...)
@@ -190,7 +194,8 @@ function distribute(A::ParMatrixN{N,M,O,T}, dims_in, comm::MPI.Comm = MPI.COMM_W
             @assert dist_across == 1
         end
 
-        # TODO: For now, only support perfect distribution because we have no way to refer to the communicator and cartesian grid
+        # TODO: For now, only support perfect distribution
+
         @assert A.input_shape[i] % dist_across == 0
         new_input_shape[i] = A.input_shape[i] ÷ dist_across
 
@@ -209,5 +214,5 @@ function distribute(A::ParMatrixN{N,M,O,T}, dims_in, comm::MPI.Comm = MPI.COMM_W
         end
     end
 
-    return ParMatrixN(T, A.weight_order, tuple(new_weight_shape...), A.input_order, tuple(new_input_shape...), A.target_order, tuple(new_target_shape...))
+    return ParMatrixN(T, A.weight_order, tuple(new_weight_shape...), A.input_order, tuple(new_input_shape...), A.target_order, tuple(new_target_shape...), "$(A.id):($(join(coords, ',')))")
 end
