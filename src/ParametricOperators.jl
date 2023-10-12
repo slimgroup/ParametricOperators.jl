@@ -32,6 +32,7 @@ include("ASTOptimization.jl")
 include("ParDistributed.jl")
 include("ParBroadcasted.jl")
 include("ParRepartition.jl")
+include("ParReduce.jl")
 
 # Operator wrappers
 include("ParIdentity.jl") # Include above for use in transforms, etc.
