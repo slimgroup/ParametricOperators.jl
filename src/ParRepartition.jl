@@ -195,3 +195,11 @@ function (R::ParRepartition{T,N})(x::X) where {T,N,X<:AbstractVector{T}}
     y = R(reshape(x, length(x), 1))
     return vec(y)
 end
+
+function ChainRulesCore.rrule(A::ParRepartition{T,N}, x::X) where {T,N,X<:AbstractMatrix{T}}
+    op_out = A(x)
+    function pullback(op)
+        return NoTangent(), A'(op)
+    end
+    return op_out, pullback
+end
