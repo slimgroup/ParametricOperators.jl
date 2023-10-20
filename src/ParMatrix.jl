@@ -214,5 +214,5 @@ function distribute(A::ParMatrixN{N,M,O,T}, dims_in, comm::MPI.Comm = MPI.COMM_W
         end
     end
 
-    return ParMatrixN(T, A.weight_order, tuple(new_weight_shape...), A.input_order, tuple(new_input_shape...), A.target_order, tuple(new_target_shape...), "$(A.id):($(join(coords, ',')))")
+    return MPI.Comm_size(comm) == 1 ? A : ParMatrixN(T, A.weight_order, tuple(new_weight_shape...), A.input_order, tuple(new_input_shape...), A.target_order, tuple(new_target_shape...), "$(A.id):($(join(coords, ',')))")
 end

@@ -18,7 +18,7 @@ end
 function ChainRulesCore.rrule(A::ParReduce{T}, x::X) where {T,X<:AbstractVector{T}}
     op_out = A(x)
     function pullback(op)
-        return NoTangent(), op
+        return NoTangent(), A(op)
     end
     return op_out, pullback
 end
@@ -26,7 +26,7 @@ end
 function ChainRulesCore.rrule(A::ParReduce{T}, x::X) where {T,X<:AbstractArray{T}}
     op_out = A(x)
     function pullback(op)
-        return NoTangent(), op
+        return NoTangent(), A(op)
     end
     return op_out, pullback
 end
