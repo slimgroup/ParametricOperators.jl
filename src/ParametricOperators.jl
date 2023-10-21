@@ -45,6 +45,7 @@ include("ParKron.jl")
 
 # Operator definitions
 include("ParMatrix.jl")
+include("ParMatrixN.jl")
 include("ParDiagonal.jl")
 include("ParDFT.jl")
 include("ParRestriction.jl")

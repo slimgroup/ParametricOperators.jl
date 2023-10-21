@@ -18,7 +18,8 @@ end
 function ChainRulesCore.rrule(A::ParReduce{T}, x::X) where {T,X<:AbstractVector{T}}
     op_out = A(x)
     function pullback(op)
-        return NoTangent(), A(op)
+        # println("Using Reduce on Vector ", size(op), " ", typeof(op), " ", eltype(op))
+        return NoTangent(), op # TODO: Fix this
     end
     return op_out, pullback
 end
