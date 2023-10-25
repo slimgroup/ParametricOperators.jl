@@ -1,6 +1,7 @@
 export ParMatrixN
 
 using OMEinsum
+using Flux
 
 """
 Dense N dimensional matrix operator.
@@ -37,9 +38,50 @@ function init!(A::ParMatrixN{N,M,O,T}, d::Parameters) where {N,M,O,T<:Complex}
     d[A] = rand(T, A.weight_shape...) ./ convert(real(T), sqrt(prod(A.weight_shape)))
 end
 
-# TODO: Add rest of the functionality and abstract usage of einsum to another controller
+# TODO: Add rest of the functionality and abstract usage of OMEinsum to another controller ?
 
-(A::ParParameterized{T,T,Linear,ParMatrixN{N,M,O,T},V})(x::X) where {N,M,O,T,V,X<:AbstractVector{T}} = vec(einsum(EinCode((A.op.weight_order,A.op.input_order),A.op.target_order),(A.params,reshape(x, A.op.input_shape))))
+function (A::ParParameterized{T,T,Linear,ParMatrixN{N,M,O,T},V})(x::X) where {N,M,O,T,V,X<:AbstractMatrix{T}}
+    # Hacky batched mul for Just ML4Seismic
+    b = size(x)[2]
+    oc = A.op.weight_shape[1]
+    ic = A.op.weight_shape[2]
+    nx = A.op.weight_shape[3]
+    ny = A.op.weight_shape[4]
+    nt = A.op.weight_shape[5]
+
+    # input from ixytb -> bi(xyt)
+    input = reshape(x, (A.op.input_shape..., b))
+    input = permutedims(input, [5,1,2,3,4])
+    input = reshape(input, b, ic, :)
+
+    # params from oixyt -> io(xyt)
+    params = permutedims(A.params, [2,1,3,4,5])
+    params = reshape(params, ic, oc, :)
+
+    # output from bo(xyt) -> (oxyt)b
+    output = batched_mul(input, params)
+    output = reshape(output, b, oc, nx, ny, nt)
+    output = permutedims(output, [2,3,4,5,1])
+    output = reshape(output, :, b)
+
+    return output
+end
+
+# function (A::ParParameterized{T,T,Linear,ParMatrixN{N,M,O,T},V})(x::X) where {N,M,O,T,V,X<:AbstractMatrix{T}}
+#     # GPU supported batched mult
+#     b = size(x)[2]
+#     nd = maximum([A.op.input_order..., A.op.weight_order...]) + 1
+
+#     io = (A.op.input_order..., nd)
+#     wo = A.op.weight_order
+#     to = (A.op.target_order..., nd)
+
+#     is = (A.op.input_shape..., b)
+
+#     return reshape(einsum(EinCode((wo,io),to),(A.params |> cpu,reshape(x, is) |> cpu)), (:, b)) |> gpu
+# end
+
+# (A::ParParameterized{T,T,Linear,ParMatrixN{N,M,O,T},V})(x::X) where {N,M,O,T,V,X<:AbstractVector{T}} = vec(einsum(EinCode((A.op.weight_order,A.op.input_order),A.op.target_order),(A.params,reshape(x, A.op.input_shape))))
 # (A::ParParameterized{T,T,Linear,ParMatrixN{N,M,O,T},V})(x::X) where {N,M,O,T,V,X<:AbstractVector{T}} = vec(einsum(EinCode((A.op.weight_order,A.op.input_order),A.op.target_order),(A.params |> cpu,reshape(x, A.op.input_shape) |> cpu))) |> gpu
 # (A::ParParameterized{T,T,Linear,ParMatrixN{N,M,O,T},V})(x::X) where {N,M,O,T,V,X<:AbstractMatrix{T}} = A.params*x
 # (A::ParParameterized{T,T,Linear,ParAdjoint{T,T,Parametric,ParMatrixN{N,M,O,T}},V})(x::X) where {N,M,O,T,V,X<:AbstractVector{T}} = A.params[A.op.op]'*x

@@ -22,6 +22,10 @@ complexity(A::ParMatrix{T}) where {T} = elementwise_multiplication_cost(T)*A.n*A
 
 function init!(A::ParMatrix{T}, d::Parameters) where {T<:Real}
 
+    if A.n == 1
+        d[A] = zeros(T, A.m, A.n)
+        return
+    end
     # G = zeros(A.n, A.m)
     # G[1, :] = [1, 2]
     # G[2, :] = [3, 4]
@@ -44,6 +48,10 @@ end
 # TODO: Remove seeds. Currently exists to match implementation to Francis's FNO
 
 function init!(A::ParMatrix{T}, d::Parameters) where {T<:Complex}
+    if A.n == 1
+        d[A] = zeros(T, A.m, A.n)
+        return
+    end
     Random.seed!(1234)
     d[A] = rand(T, A.n, A.m)/convert(real(T), sqrt(A.m*A.n))
     d[A] = permutedims(d[A], [2, 1])
@@ -57,6 +65,13 @@ end
 *(x::X, A::ParParameterized{T,T,Linear,ParMatrix{T},V}) where {T,V,X<:AbstractMatrix{T}} = x*A.params
 *(x::X, A::ParParameterized{T,T,Linear,ParAdjoint{T,T,Parametric,ParMatrix{T}},V}) where {T,V,X<:AbstractVector{T}} = x*A.params[A.op.op]'
 *(x::X, A::ParParameterized{T,T,Linear,ParAdjoint{T,T,Parametric,ParMatrix{T}},V}) where {T,V,X<:AbstractMatrix{T}} = x*A.params[A.op.op]'
+
++(x::X, A::ParParameterized{T,T,Linear,ParMatrix{T},V}) where {T,V,X<:AbstractVector{T}} = x.+A.params
++(x::X, A::ParParameterized{T,T,Linear,ParMatrix{T},V}) where {T,V,X<:AbstractArray{T}} = x.+A.params
++(x::X, A::ParParameterized{T,T,Linear,ParMatrix{T},V}) where {T,V,X<:AbstractMatrix{T}} = x.+A.params
++(x::X, A::ParParameterized{T,T,Linear,ParAdjoint{T,T,Parametric,ParMatrix{T}},V}) where {T,V,X<:AbstractVector{T}} = x+A.params[A.op.op]'
++(x::X, A::ParParameterized{T,T,Linear,ParAdjoint{T,T,Parametric,ParMatrix{T}},V}) where {T,V,X<:AbstractArray{T}} = x+A.params[A.op.op]'
++(x::X, A::ParParameterized{T,T,Linear,ParAdjoint{T,T,Parametric,ParMatrix{T}},V}) where {T,V,X<:AbstractMatrix{T}} = x+A.params[A.op.op]'
 
 function to_Dict(A::ParMatrix{T}) where {T}
     rv = Dict{String, Any}(
