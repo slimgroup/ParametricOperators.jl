@@ -7,8 +7,8 @@ mutable struct ParRepartition{T,N} <: ParLinearOperator{T,T,NonParametric,Extern
     global_size::NTuple{N, Integer}
     local_size_in::NTuple{N, Integer}
     local_size_out::NTuple{N, Integer}
-    send_data::OrderedDict{Integer, Tuple{NTuple{N, UnitRange{Integer}}, Option{Vector{T}}}}
-    recv_data::OrderedDict{Integer, Tuple{NTuple{N, UnitRange{Integer}}, Option{Vector{T}}}}
+    send_data::OrderedDict{Int32, Tuple{NTuple{N, UnitRange{Int32}}, Option{Vector{T}}}}
+    recv_data::OrderedDict{Int32, Tuple{NTuple{N, UnitRange{Int32}}, Option{Vector{T}}}}
     batch_size::Option{Integer}
 
     function ParRepartition(T, comm_in, comm_out, global_size)

@@ -1,7 +1,7 @@
 export ParMatrixN
 
 using OMEinsum
-using Flux
+using Flux:batched_mul
 
 """
 Dense N dimensional matrix operator.
