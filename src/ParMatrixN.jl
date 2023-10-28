@@ -40,10 +40,38 @@ end
 
 # TODO: Add rest of the functionality and abstract usage of OMEinsum to another controller ?
 
-function (A::ParParameterized{T,T,Linear,ParMatrixN{N,M,O,T},V})(x::X) where {N,M,O,T,V,X<:AbstractMatrix{T}}
+function (A::ParParameterized{T,T,Linear,ParMatrixN{6,M,O,T},V})(x::X) where {M,O,T,V,X<:AbstractMatrix{T}}
     # Hacky batched mul for Just ML4Seismic
     b = size(x)[2]
-    oc = A.op.weight_shape[1]
+    oc = A.op.weight_shape[1]   
+    ic = A.op.weight_shape[2]
+    nx = A.op.weight_shape[3]
+    ny = A.op.weight_shape[4]
+    nz = A.op.weight_shape[5]
+    nt = A.op.weight_shape[6]
+
+    # input from ixyztb -> bi(xyzt)
+    input = reshape(x, (A.op.input_shape..., b))
+    input = permutedims(input, [6,1,2,3,4,5])
+    input = reshape(input, b, ic, :)
+
+    # params from oixyzt -> io(xyzt)
+    params = permutedims(A.params, [2,1,3,4,5,6])
+    params = reshape(params, ic, oc, :)
+
+    # output from bo(xyzt) -> (oxyzt)b
+    output = batched_mul(input, params)
+    output = reshape(output, b, oc, nx, ny, nz, nt)
+    output = permutedims(output, [2,3,4,5,6,1])
+    output = reshape(output, :, b)
+
+    return output
+end
+
+function (A::ParParameterized{T,T,Linear,ParMatrixN{5,M,O,T},V})(x::X) where {M,O,T,V,X<:AbstractMatrix{T}}
+    # Hacky batched mul for Just ML4Seismic
+    b = size(x)[2]
+    oc = A.op.weight_shape[1]   
     ic = A.op.weight_shape[2]
     nx = A.op.weight_shape[3]
     ny = A.op.weight_shape[4]
