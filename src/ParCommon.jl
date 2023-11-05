@@ -66,7 +66,6 @@ end
 function rotate_dims_batched(x, rot)
     n = length(size(x))
     perm = [circshift(collect(1:n-1), rot)..., n]
-    println(size(x), perm)
     return permutedims(x, perm)
 end
 
