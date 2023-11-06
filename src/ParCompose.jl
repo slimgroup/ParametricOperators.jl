@@ -58,7 +58,7 @@ function (A::ParCompose{D,R,L,<:Applicable,F,N})(x::X) where {D,R,L,F,N,X<:Abstr
     for i in 1:N
         rank = MPI.Comm_rank(MPI.COMM_WORLD)
         MPI.Barrier(MPI.COMM_WORLD)
-        rank == 0 && println(typeof(A.ops[N-i+1]), size(x))
+        rank == 1 && println(typeof(A.ops[N-i+1]), size(x))
         x = A.ops[N-i+1](x)
     end
     return x

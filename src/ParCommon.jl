@@ -67,7 +67,8 @@ function rotate_dims_batched(x, rot)
     n = length(size(x))
     perm = [circshift(collect(1:n-1), rot)..., n]
     rank = MPI.Comm_rank(MPI.COMM_WORLD)
-    rank == 0 && println(size(x), perm)
+    rank == 1 && println(size(x), perm)
+    0 in size(x) && return permutedims(x |> cpu, perm) |> gpu
     return permutedims(x, perm)
 end
 
