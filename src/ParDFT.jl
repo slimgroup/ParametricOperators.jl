@@ -27,7 +27,7 @@ complexity(A::ParDFT{D,R}) where {D,R} = elementwise_multiplication_cost(R)*A.n*
 (A::ParDFT{D,R})(x::X) where {D<:Real,R,X<:AbstractMatrix{D}} = rfft(x, 1)
 (A::ParDFT{D,R})(x::X) where {D,R,X<:AbstractVector{D}} = vec(A(reshape(x, length(x), 1)))
 
-(A::ParAdjoint{D,R,NonParametric,ParDFT{D,R}})(x::X) where {D<:Complex,R,X<:AbstractMatrix{R}} = ifft(x, 1)
+(A::ParAdjoint{D,R,NonParametric,ParDFT{D,R}})(x::X) where {D<:Complex,R,X<:AbstractMatrix{R}} = 0 in size(x) ? x :  ifft(x, 1)
 (A::ParAdjoint{D,R,NonParametric,ParDFT{D,R}})(x::X) where {D<:Real,R,X<:AbstractMatrix{R}} = irfft(x, A.op.n, 1)
 (A::ParAdjoint{D,R,NonParametric,ParDFT{D,R}})(x::X) where {D,R,X<:AbstractVector{R}} = vec(A(reshape(x, length(x), 1)))
 
