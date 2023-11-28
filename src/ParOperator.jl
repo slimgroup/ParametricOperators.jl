@@ -132,7 +132,7 @@ const Parameters = Dict{<:ParOperator,Any}
 Move objects to cpu.
 """
 cpu(x::CuArray{<:Number}) = Array(x)
-cpu(x::Vector{CuArray}) = [cpu(y) fpr y in x]
+cpu(x::Vector{CuArray}) = [cpu(y) for y in x]
 cpu(x::AbstractArray) = x
 cpu(x::Parameters) = Dict(k => cpu(v) for (k, v) in pairs(x))
 
@@ -141,7 +141,7 @@ if CUDA.functional()
     Move objects to gpu.
     """
     gpu(x::AbstractArray{<:Number}) = CuArray(x)
-    gpu(x::Vector{<:AbstractArray}) = [gpu(y) fpr y in x]
+    gpu(x::Vector{<:AbstractArray}) = [gpu(y) for y in x]
     gpu(x::CuArray) = x
     gpu(x::Parameters) = Dict(k => gpu(v) for (k, v) in pairs(x))
 end
