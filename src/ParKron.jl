@@ -80,9 +80,11 @@ end
 
 kron(A::ParLinearOperator, B::ParLinearOperator) = ParKron(A, B)
 kron(A::ParKron, B::ParLinearOperator) = ParKron(A.ops..., B)
+kron(A::ParIdentity, B::ParKron) = ParKron(A, B)
 kron(A::ParLinearOperator, B::ParKron) = ParKron(A, B.ops...)
-kron(A::ParKron, B::ParKron) = ParKron(A.ops..., B.ops...)
+⊗(A::ParKron, B::ParKron) = ParKron(A.ops..., B.ops...)
 ⊗(A::ParLinearOperator, B::ParLinearOperator) = kron(A, B)
+kron(A::ParKron, B::ParKron) = ParKron(A, B)
 
 Domain(A::ParSeparableOperator) = prod(map(Domain, children(A)))
 Range(A::ParSeparableOperator) = prod(map(Range, children(A)))
@@ -266,6 +268,8 @@ function latex_string(A::ParKron{D,R,P,F,N}) where {D,R,P,F,N}
     return out
 end
 
+rebuild(A::ParBroadcasted{D,R,L,Parametric,F}, cs) where {D,R,L,F<:ParKron} = rebuild(A.op, collect(map(c -> parametricity(c) == Parametric ? ParBroadcasted(c, A.comm, A.root) : c, children(cs[1]))))
+
 """
 Distributes Kronecker product over the given dimensions
 """
@@ -348,7 +352,7 @@ function distribute(A::ParKron, comm_in::MPI.Comm, comm_out::MPI.Comm, parent_co
 
         # rank == 0 && println("Actual: ", Range(Ai), "x", Domain(Ai))
 
-        pushfirst!(ops, ParKron(idents_dim_lower..., ParBroadcasted(Ai, comm_i), idents_dim_upper...))
+        pushfirst!(ops, ParKron(idents_dim_lower..., rebuild(ParBroadcasted(Ai, comm_i), [Ai]), idents_dim_upper...))
 
         size_curr[d] = Range(Ai)
         comm_prev = comm_i
