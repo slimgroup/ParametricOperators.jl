@@ -80,11 +80,9 @@ end
 
 kron(A::ParLinearOperator, B::ParLinearOperator) = ParKron(A, B)
 kron(A::ParKron, B::ParLinearOperator) = ParKron(A.ops..., B)
-kron(A::ParIdentity, B::ParKron) = ParKron(A, B)
 kron(A::ParLinearOperator, B::ParKron) = ParKron(A, B.ops...)
 ⊗(A::ParKron, B::ParKron) = ParKron(A.ops..., B.ops...)
 ⊗(A::ParLinearOperator, B::ParLinearOperator) = kron(A, B)
-kron(A::ParKron, B::ParKron) = ParKron(A, B)
 
 Domain(A::ParSeparableOperator) = prod(map(Domain, children(A)))
 Range(A::ParSeparableOperator) = prod(map(Range, children(A)))
@@ -331,7 +329,7 @@ function distribute(A::ParKron, comm_in::MPI.Comm, comm_out::MPI.Comm, parent_co
 
         # Create repartition operator if data is distributed differently than expected
         !isequal(dims_prev, dims_i) && pushfirst!(ops, ParRepartition(DDT(Ai), comm_prev, comm_i, tuple(size_curr...)))
-
+        # !isequal(dims_prev, dims_i) && (MPI.Comm_rank(comm_in) == 0) && println("Pushing a repartition inside @ iteration ", i, " ", dims_prev, dims_i)
         # if MPI.Comm_rank(comm_in) == 0
             # println(length(ops))
         # end
@@ -360,6 +358,7 @@ function distribute(A::ParKron, comm_in::MPI.Comm, comm_out::MPI.Comm, parent_co
     end
 
     !isequal(dims_prev, dims_out) && pushfirst!(ops, ParRepartition(RDT(A.ops[A.order[end]]), comm_prev, comm_out, tuple(size_curr...)))
+    # !isequal(dims_prev, dims_out) && (MPI.Comm_rank(comm_in) == 0) && println("Pushing a repartition outside")
 
     # for op in ops
     #     if MPI.Comm_rank(comm_prev) == 0
