@@ -25,6 +25,15 @@ struct ParKron{D,R,P,F,N} <: ParSeparableOperator{D,R,P,Internal}
     end
 
     function ParKron(ops...)
+        # Brute force application from right to left because sometimes reordering 
+        # causing more repartitions which are much more expensive as of now for desired applications
+        order = [i for i in reverse(1:length(ops))]
+
+        D = DDT(ops[order[1]])
+        R = RDT(ops[order[end]])
+        P = foldl(promote_parametricity, map(parametricity, ops))
+
+        return new{D,R,P,typeof(ops),length(ops)}(ops, order)
 
         # Collect operators into a vector
         ops = collect(ops)
