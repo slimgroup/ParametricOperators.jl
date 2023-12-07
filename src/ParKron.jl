@@ -27,11 +27,13 @@ struct ParKron{D,R,P,F,N} <: ParSeparableOperator{D,R,P,Internal}
     function ParKron(ops...)
         # Brute force application from right to left because sometimes reordering 
         # causing more repartitions which are much more expensive as of now for desired applications
-        order = [i for i in reverse(1:length(ops))]
+        # rn in the fno code the subtype computed here is always applied first, so no repartition.
+        # This now becomes necessary for example: we need to take RFFT before the identity. (could say identity is real to fix this as well)
+        # order = [i for i in reverse(1:length(ops))]
 
-        D = DDT(ops[order[1]])
-        R = RDT(ops[order[end]])
-        P = foldl(promote_parametricity, map(parametricity, ops))
+        # D = DDT(ops[order[1]])
+        # R = RDT(ops[order[end]])
+        # P = foldl(promote_parametricity, map(parametricity, ops))
 
         return new{D,R,P,typeof(ops),length(ops)}(ops, order)
 
@@ -338,7 +340,7 @@ function distribute(A::ParKron, comm_in::MPI.Comm, comm_out::MPI.Comm, parent_co
 
         # Create repartition operator if data is distributed differently than expected
         !isequal(dims_prev, dims_i) && pushfirst!(ops, ParRepartition(DDT(Ai), comm_prev, comm_i, tuple(size_curr...)))
-        # !isequal(dims_prev, dims_i) && (MPI.Comm_rank(comm_in) == 0) && println("Pushing a repartition inside @ iteration ", i, " ", dims_prev, dims_i)
+        !isequal(dims_prev, dims_i) && (MPI.Comm_rank(comm_in) == 0) && println("Pushing a repartition inside @ iteration ", i, " ", dims_prev, dims_i)
         # if MPI.Comm_rank(comm_in) == 0
             # println(length(ops))
         # end
