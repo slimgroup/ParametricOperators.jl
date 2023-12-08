@@ -28,14 +28,7 @@ struct ParKron{D,R,P,F,N} <: ParSeparableOperator{D,R,P,Internal}
         # Brute force application from right to left because sometimes reordering 
         # causing more repartitions which are much more expensive as of now for desired applications
         # rn in the fno code the subtype computed here is always applied first, so no repartition.
-        # This now becomes necessary for example: we need to take RFFT before the identity. (could say identity is real to fix this as well)
-        # order = [i for i in reverse(1:length(ops))]
-
-        # D = DDT(ops[order[1]])
-        # R = RDT(ops[order[end]])
-        # P = foldl(promote_parametricity, map(parametricity, ops))
-
-        return new{D,R,P,typeof(ops),length(ops)}(ops, order)
+        # for example: we need to take RFFT before the identity in fno
 
         # Collect operators into a vector
         ops = collect(ops)
