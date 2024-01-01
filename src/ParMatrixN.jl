@@ -95,6 +95,31 @@ function (A::ParParameterized{T,T,Linear,ParMatrixN{5,M,O,T},V})(x::X) where {M,
     return output
 end
 
+function (A::ParParameterized{T,T,Linear,ParMatrixN{4,M,O,T},V})(x::X) where {M,O,T,V,X<:AbstractMatrix{T}}
+    # Hacky batched mul for Just ML4Seismic
+    b = size(x)[2] 
+    ic = A.op.weight_shape[1]
+    oc = A.op.weight_shape[2]  
+    nt = A.op.weight_shape[3]
+    nxy = A.op.weight_shape[4]
+
+    # input from it(xy)b -> bi(txy)
+    input = reshape(x, (A.op.input_shape..., b))
+    input = permutedims(input, [4,1,2,3])
+    input = reshape(input, b, ic, :)
+
+    # params from iot(xy) -> io(txy)
+    params = reshape(A.params, ic, oc, :)
+
+    # output from bo(txy) -> (otxy)b
+    output = batched_mul(input, params)
+    output = reshape(output, b, oc, nt, nxy)
+    output = permutedims(output, [2,3,4,1])
+    output = reshape(output, :, b)
+
+    return output
+end
+
 # function (A::ParParameterized{T,T,Linear,ParMatrixN{N,M,O,T},V})(x::X) where {N,M,O,T,V,X<:AbstractMatrix{T}}
 #     # GPU supported batched mult
 #     b = size(x)[2]
