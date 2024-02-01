@@ -4,7 +4,7 @@ struct ParBroadcasted{D,R,L,P,F} <: ParOperator{D,R,L,P,Internal}
     op::F
     comm::MPI.Comm
     root::Int
-    ParBroadcasted(op, comm, root::Int = 0) = new{DDT(op),RDT(op),linearity(op),parametricity(op),typeof(op)}(op, comm, root)
+    ParBroadcasted(op, comm::Any=MPI.COMM_WORLD, root::Int = 0) = new{DDT(op),RDT(op),linearity(op),parametricity(op),typeof(op)}(op, comm, root)
 end
 
 bcasted(A::ParOperator{D,R,L,P,External}, comm = MPI.COMM_WORLD, root = 0) where {D,R,L,P} =
@@ -33,3 +33,19 @@ end
 (A::ParBroadcasted{D,R,L,<:Applicable,F})(x::X) where {D,R,L,F,X<:AbstractVector{D}} = A.op(x)
 (A::ParBroadcasted{D,R,L,<:Applicable,F})(x::X) where {D,R,L,F,X<:AbstractMatrix{D}} = A.op(x)
 *(x::X, A::ParBroadcasted{D,R,Linear,<:Applicable,F}) where {D,R,F,X<:AbstractMatrix{D}} = x*A.op
++(x::X, A::ParBroadcasted{D,R,Linear,<:Applicable,F}) where {D,R,F,X<:AbstractMatrix{D}} = x+A.op
+
+function ChainRulesCore.rrule(A::ParBroadcasted{D,R,L,Parametric,F}, params) where {D,R,L,F}
+    op_out = A(params)
+    function pullback(op)
+        θ_global = MPI.Reduce(op.op.params |> cpu, MPI.SUM, A.root, A.comm)
+
+        if MPI.Comm_rank(A.comm) == A.root
+            # TODO: Need to handle Machine agnostic. Currently only works on GPU
+            return NoTangent(), Dict(A.op=>(θ_global |> gpu))
+        else
+            return NoTangent(), NoTangent()
+        end
+    end
+    return op_out, pullback
+end

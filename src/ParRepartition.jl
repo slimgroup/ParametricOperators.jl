@@ -7,8 +7,8 @@ mutable struct ParRepartition{T,N} <: ParLinearOperator{T,T,NonParametric,Extern
     global_size::NTuple{N, Integer}
     local_size_in::NTuple{N, Integer}
     local_size_out::NTuple{N, Integer}
-    send_data::OrderedDict{Integer, Tuple{NTuple{N, UnitRange{Integer}}, Option{Vector{T}}}}
-    recv_data::OrderedDict{Integer, Tuple{NTuple{N, UnitRange{Integer}}, Option{Vector{T}}}}
+    send_data::OrderedDict{Int32, Tuple{NTuple{N, UnitRange{Int32}}, Option{Vector{T}}}}
+    recv_data::OrderedDict{Int32, Tuple{NTuple{N, UnitRange{Int32}}, Option{Vector{T}}}}
     batch_size::Option{Integer}
 
     function ParRepartition(T, comm_in, comm_out, global_size)
@@ -194,4 +194,12 @@ end
 function (R::ParRepartition{T,N})(x::X) where {T,N,X<:AbstractVector{T}}
     y = R(reshape(x, length(x), 1))
     return vec(y)
+end
+
+function ChainRulesCore.rrule(A::ParRepartition{T,N}, x::X) where {T,N,X<:AbstractMatrix{T}}
+    op_out = A(x)
+    function pullback(op)
+        return NoTangent(), A'(op)
+    end
+    return op_out, pullback
 end

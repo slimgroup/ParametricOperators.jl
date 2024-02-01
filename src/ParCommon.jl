@@ -66,6 +66,8 @@ end
 function rotate_dims_batched(x, rot)
     n = length(size(x))
     perm = [circshift(collect(1:n-1), rot)..., n]
+    # TODO: Handle 0 tensors for the GPU case effectively in a non hacky way
+    0 in size(x) && return permutedims(x |> cpu, perm) |> gpu
     return permutedims(x, perm)
 end
 

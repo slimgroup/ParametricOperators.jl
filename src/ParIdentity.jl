@@ -31,3 +31,5 @@ function from_Dict(::Type{ParIdentity}, d)
     dtype = Data_TYPES[ts]
     ParIdentity(dtype, d["n"])
 end
+
+kron(A::ParIdentity{T}, B::ParIdentity{T}) where {T} = ParIdentity(T,B.n*A.n)

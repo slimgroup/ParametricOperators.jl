@@ -53,3 +53,19 @@ function from_Dict(::Type{ParRestriction}, d)
     dtype = Data_TYPES[ts]
     ParRestriction(dtype, d["n"], ranges)
 end
+
+function ChainRulesCore.rrule(A::ParRestriction{T}, x::X) where {T,X<:AbstractMatrix{T}}
+    op_out = A(x)
+    function pullback(op)
+        return (NoTangent(), A'(op))
+    end
+    return op_out, pullback
+end
+
+function ChainRulesCore.rrule(A::ParAdjoint{T,T,NonParametric,ParRestriction{T}}, x::X) where {T,X<:AbstractMatrix{T}}
+    op_out = A(x)
+    function pullback(op)
+        return (NoTangent(), A.op(op))
+    end
+    return op_out, pullback
+end
