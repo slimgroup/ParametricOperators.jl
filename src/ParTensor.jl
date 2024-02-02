@@ -44,21 +44,25 @@ function (A::ParParameterized{T,T,Linear,ParTensor{4,M,O,T},V})(x::X) where {M,O
     nxy = A.op.weight_shape[4]
 
     # input from it(xy)b -> bi(txy)
-    input = reshape(x, (A.op.input_shape..., b))
-    input = permutedims(input, [4,1,2,3])
-    input = reshape(input, b, ic, :)
+    x = reshape(x, (A.op.input_shape..., b))
+    x = permutedims(x, [4,1,2,3])
+    x = reshape(x, b, ic, :)
 
     # params from iot(xy) -> io(txy)
     params = reshape(A.params, ic, oc, :)
 
     # output from bo(txy) -> (otxy)b
-    output = batched_mul(input, params)
+    output = batched_mul(x, params)
     output = reshape(output, b, oc, nt, nxy)
     output = permutedims(output, [2,3,4,1])
     output = reshape(output, :, b)
 
     return output
 end
+
+# TODO: Ideally we want the following because its an abstraction for any einsum. Currently, a bug with Julia
+# (A::ParParameterized{T,T,Linear,ParMatrixN{N,M,O,T},V})(x::X) where {N,M,O,T,V,X<:AbstractVector{T}} = vec(einsum(EinCode((A.op.weight_order,A.op.input_order),A.op.target_order),(A.params,reshape(x, A.op.input_shape))))
+# (A::ParParameterized{T,T,Linear,ParMatrixN{N,M,O,T},V})(x::X) where {N,M,O,T,V,X<:AbstractVector{T}} = vec(einsum(EinCode((A.op.weight_order,A.op.input_order),A.op.target_order),(A.params |> cpu,reshape(x, A.op.input_shape) |> cpu))) |> gpu
 
 function to_Dict(A::ParTensor{N,M,O,T}) where {N,M,O,T}
     rv = Dict{String, Any}(
