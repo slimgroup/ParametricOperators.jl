@@ -38,10 +38,12 @@ end
 function ChainRulesCore.rrule(A::ParBroadcasted{D,R,L,Parametric,F}, params) where {D,R,L,F}
     op_out = A(params)
     function pullback(op)
-        θ_global = MPI.Reduce(op.op.params |> cpu, MPI.SUM, A.root, A.comm)
+        # θ_global = MPI.Reduce(op.op.params |> cpu, MPI.SUM, A.root, A.comm)
+        θ_global = MPI.Reduce(op.op.params, MPI.SUM, A.root, A.comm)
 
         if MPI.Comm_rank(A.comm) == A.root
-            return NoTangent(), Dict(A.op=>(θ_global |> gpu))
+            # return NoTangent(), Dict(A.op=>(θ_global |> gpu))
+            return NoTangent(), Dict(A.op=>θ_global)
         else
             return NoTangent(), NoTangent()
         end

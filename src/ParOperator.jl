@@ -203,8 +203,16 @@ end
 Parameterize the given operator
 """
 function (A::ParOperator{D,R,L,Parametric,Internal})(params) where {D,R,L}
-    # println("rbuh, ", Range(A), " x ", Domain(A))
-    # println(length(children(A)))
+    # println(length(children(A)), " ITEMS TO PARAMETRIZE AND REBUILD OF: ", typeof(A))
+    # for c in children(A)
+    #     println("TYPE OF INPUT CHILD: ", typeof(c))
+    # end
+    # nc = collect(map(c -> parametricity(c) == Parametric ? c(params) : c, children(A)))
+    # println(length(nc), " ITEMS HAVE BEEN PARAMETRIZED AND REBUILDED", )
+    # for c in nc
+    #     println("TYPE OF A CHILD: ", typeof(c))
+    # end
+    # return rebuild(A, nc)
     return rebuild(A, collect(map(c -> parametricity(c) == Parametric ? c(params) : c, children(A))))
 end
 

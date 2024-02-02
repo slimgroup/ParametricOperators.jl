@@ -66,7 +66,7 @@ end
 function rotate_dims_batched(x, rot)
     n = length(size(x))
     perm = [circshift(collect(1:n-1), rot)..., n]
-    0 in size(x) && return permutedims(x |> cpu, perm) |> gpu
+    # 0 in size(x) && return permutedims(x |> cpu, perm) |> gpu
     return permutedims(x, perm)
 end
 
