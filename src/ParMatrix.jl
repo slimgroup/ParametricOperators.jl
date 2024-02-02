@@ -7,20 +7,10 @@ struct ParMatrix{T} <: ParLinearOperator{T,T,Parametric,External}
     m::Int
     n::Int
     id::Any
-    init_func::Union{Function, Nothing}
-
-    function ParMatrix(T::DataType, m::Int, n::Int, id, init_func=nothing)
-        new{T}(m, n, id, init_func)
-    end
-    function ParMatrix(m::Int, n::Int, id, init_func=nothing)
-        new{Float64}(m, n, id, init_func)
-    end
-    function ParMatrix(T::DataType, m::Int, n::Int, init_func=nothing)
-        new{T}(m, n, uuid4(Random.GLOBAL_RNG), init_func)
-    end
-    function ParMatrix(m::Int, n::Int, init_func=nothing)
-        new{Float64}(m, n, uuid4(Random.GLOBAL_RNG), init_func)
-    end
+    ParMatrix(T::DataType, m::Int, n::Int, id) = new{T}(m, n, id)
+    ParMatrix(m::Int, n::Int, id) = new{Float64}(m, n, id)
+    ParMatrix(T::DataType, m::Int, n::Int) = new{T}(m, n, uuid4(Random.GLOBAL_RNG))
+    ParMatrix(m::Int, n::Int) = new{Float64}(m, n, uuid4(Random.GLOBAL_RNG))
 end
 
 Domain(A::ParMatrix) = A.n
@@ -29,19 +19,22 @@ Range(A::ParMatrix) = A.m
 complexity(A::ParMatrix{T}) where {T} = elementwise_multiplication_cost(T)*A.n*A.m
 
 function init!(A::ParMatrix{T}, d::Parameters) where {T<:Real}
-    if A.init_func !== nothing
-        A.init_func(A, d)
-    else
-        d[A] = rand(T, A.m, A.n)/convert(T, sqrt(A.m*A.n))
+    if A.n == 1
+        d[A] = zeros(T, A.m, A.n)
+        return
     end
+    scale = sqrt(24.0f0 / sum((A.m, A.n)))
+    d[A] = (rand(T, (A.n, A.m)) .- 0.5f0) .* scale
+    d[A] = permutedims(d[A], [2, 1])
 end
 
 function init!(A::ParMatrix{T}, d::Parameters) where {T<:Complex}
-    if A.init_func !== nothing
-        A.init_func(A, d)
-    else
-        d[A] = rand(T, A.m, A.n)/convert(real(T), sqrt(A.m*A.n))
+    if A.n == 1
+        d[A] = zeros(T, A.m, A.n)
+        return
     end
+    d[A] = rand(T, A.n, A.m)/convert(real(T), sqrt(A.m*A.n))
+    d[A] = permutedims(d[A], [2, 1])
 end
 
 (A::ParParameterized{T,T,Linear,ParMatrix{T},V})(x::X) where {T,V,X<:AbstractVector{T}} = A.params*x

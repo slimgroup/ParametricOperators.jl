@@ -38,10 +38,13 @@ end
 function ChainRulesCore.rrule(A::ParBroadcasted{D,R,L,Parametric,F}, params) where {D,R,L,F}
     op_out = A(params)
     function pullback(op)
+        device = get_device(op.op.params)
         θ_global = MPI.Reduce(op.op.params |> cpu, MPI.SUM, A.root, A.comm)
 
         if MPI.Comm_rank(A.comm) == A.root
-            # TODO: Need to handle Machine agnostic. Currently only works on GPU
+            if device == "cpu"
+                return NoTangent(), Dict(A.op=>θ_global)
+            end
             return NoTangent(), Dict(A.op=>(θ_global |> gpu))
         else
             return NoTangent(), NoTangent()

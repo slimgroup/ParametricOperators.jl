@@ -66,8 +66,12 @@ end
 function rotate_dims_batched(x, rot)
     n = length(size(x))
     perm = [circshift(collect(1:n-1), rot)..., n]
-    # TODO: Handle 0 tensors for the GPU case effectively in a non hacky way
-    0 in size(x) && return permutedims(x |> cpu, perm) |> gpu
+
+    device = get_device(x)
+    if device != "cpu"
+        0 in size(x) && return permutedims(x |> cpu, perm) |> gpu
+    end
+
     return permutedims(x, perm)
 end
 
@@ -85,4 +89,15 @@ zeros_like(::AbstractArray{T}, dims...) where {T} = zeros(T, dims...)
 if CUDA.functional()
     zeros_like(::CuArray{T}, dims) where {T} = CUDA.zeros(T, dims)
     zeros_like(::CuArray{T}, dims...) where {T} = CUDA.zeros(T, dims...)
+end
+
+"""
+Returns whether the input is on a NVIDIA GPU
+"""
+function get_device(x::AbstractArray)
+    if isa(x, CUDA.CuArray)
+        return "gpu"
+    else
+        return "cpu"
+    end
 end
