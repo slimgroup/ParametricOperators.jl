@@ -42,5 +42,6 @@ function ChainRulesCore.rrule(A::ParReduce{T}, x::X) where {T,X<:AbstractArray{T
     op_out = A(x)
     function pullback(op)
         return NoTangent(), op
+    end
     return op_out, pullback
 end
