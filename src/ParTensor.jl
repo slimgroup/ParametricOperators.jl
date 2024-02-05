@@ -60,9 +60,64 @@ function (A::ParParameterized{T,T,Linear,ParTensor{4,M,O,T},V})(x::X) where {M,O
     return output
 end
 
+function (A::ParParameterized{T,T,Linear,ParTensor{5,M,O,T},V})(x::X) where {M,O,T,V,X<:AbstractMatrix{T}}
+    # Hacky batched mul for Just ML4Seismic
+    b = size(x)[2]
+    oc = A.op.weight_shape[1]   
+    ic = A.op.weight_shape[2]
+    nx = A.op.weight_shape[3]
+    ny = A.op.weight_shape[4]
+    nt = A.op.weight_shape[5]
+
+    # input from ixytb -> bi(xyt)
+    input = reshape(x, (A.op.input_shape..., b))
+    input = permutedims(input, [5,1,2,3,4])
+    input = reshape(input, b, ic, :)
+
+    # params from oixyt -> io(xyt)
+    params = permutedims(A.params, [2,1,3,4,5])
+    params = reshape(params, ic, oc, :)
+
+    # output from bo(xyt) -> (oxyt)b
+    output = batched_mul(input, params)
+    output = reshape(output, b, oc, nx, ny, nt)
+    output = permutedims(output, [2,3,4,5,1])
+    output = reshape(output, :, b)
+
+    return output
+end
+
+function (A::ParParameterized{T,T,Linear,ParTensor{6,M,O,T},V})(x::X) where {M,O,T,V,X<:AbstractMatrix{T}}
+    # Hacky batched mul for Just ML4Seismic
+    b = size(x)[2]
+    oc = A.op.weight_shape[1]   
+    ic = A.op.weight_shape[2]
+    nx = A.op.weight_shape[3]
+    ny = A.op.weight_shape[4]
+    nz = A.op.weight_shape[5]
+    nt = A.op.weight_shape[6]
+
+    # input from ixyztb -> bi(xyzt)
+    input = reshape(x, (A.op.input_shape..., b))
+    input = permutedims(input, [6,1,2,3,4,5])
+    input = reshape(input, b, ic, :)
+
+    # params from oixyzt -> io(xyzt)
+    params = permutedims(A.params, [2,1,3,4,5,6])
+    params = reshape(params, ic, oc, :)
+
+    # output from bo(xyzt) -> (oxyzt)b
+    output = batched_mul(input, params)
+    output = reshape(output, b, oc, nx, ny, nz, nt)
+    output = permutedims(output, [2,3,4,5,6,1])
+    output = reshape(output, :, b)
+
+    return output
+end
+
 # TODO: Ideally we want the following because its an abstraction for any einsum. Currently, a bug with Julia
-# (A::ParParameterized{T,T,Linear,ParMatrixN{N,M,O,T},V})(x::X) where {N,M,O,T,V,X<:AbstractVector{T}} = vec(einsum(EinCode((A.op.weight_order,A.op.input_order),A.op.target_order),(A.params,reshape(x, A.op.input_shape))))
-# (A::ParParameterized{T,T,Linear,ParMatrixN{N,M,O,T},V})(x::X) where {N,M,O,T,V,X<:AbstractVector{T}} = vec(einsum(EinCode((A.op.weight_order,A.op.input_order),A.op.target_order),(A.params |> cpu,reshape(x, A.op.input_shape) |> cpu))) |> gpu
+# (A::ParParameterized{T,T,Linear,ParTensor{N,M,O,T},V})(x::X) where {N,M,O,T,V,X<:AbstractVector{T}} = vec(einsum(EinCode((A.op.weight_order,A.op.input_order),A.op.target_order),(A.params,reshape(x, A.op.input_shape))))
+# (A::ParParameterized{T,T,Linear,ParTensor{N,M,O,T},V})(x::X) where {N,M,O,T,V,X<:AbstractVector{T}} = vec(einsum(EinCode((A.op.weight_order,A.op.input_order),A.op.target_order),(A.params |> cpu,reshape(x, A.op.input_shape) |> cpu))) |> gpu
 
 function to_Dict(A::ParTensor{N,M,O,T}) where {N,M,O,T}
     rv = Dict{String, Any}(

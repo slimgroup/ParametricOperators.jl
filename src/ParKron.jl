@@ -282,6 +282,7 @@ function distribute(A::ParKron, comm_in::MPI.Comm, comm_out::MPI.Comm, parent_co
         coords_i = MPI.Cart_coords(comm_i)
 
         # Create repartition operator
+        !isequal(dims_prev, dims_i) && (MPI.Comm_rank(parent_comm) == 0) && println("Adding Repartition")
         !isequal(dims_prev, dims_i) && pushfirst!(ops, ParRepartition(DDT(Ai), comm_prev, comm_i, tuple(size_curr...)))
 
         # Create Kronecker w/ distributed identities
