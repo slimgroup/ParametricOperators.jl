@@ -71,7 +71,7 @@ end
 kron(A::ParLinearOperator, B::ParLinearOperator) = ParKron(A, B)
 kron(A::ParKron, B::ParLinearOperator) = ParKron(A.ops..., B)
 kron(A::ParLinearOperator, B::ParKron) = ParKron(A, B.ops...)
-kron(A::ParKron, B::ParKron) = ParKron(A.ops..., B.ops...)
+⊗(A::ParKron, B::ParKron) = ParKron(A.ops..., B.ops...)
 ⊗(A::ParLinearOperator, B::ParLinearOperator) = kron(A, B)
 
 Domain(A::ParSeparableOperator) = prod(map(Domain, children(A)))
@@ -236,15 +236,26 @@ function latex_string(A::ParKron{D,R,P,F,N}) where {D,R,P,F,N}
     return out
 end
 
-"""
-Distributes Kronecker product over the given communicator
-"""
-function distribute(A::ParKron, dims_in, dims_out=dims_in, parent_comm=MPI.COMM_WORLD)
+rebuild(A::ParBroadcasted{D,R,L,Parametric,F}, cs) where {D,R,L,F<:ParKron} = rebuild(A.op, collect(map(c -> parametricity(c) == Parametric ? ParBroadcasted(c, A.comm, A.root) : c, children(cs[1]))))
 
+"""
+Distributes Kronecker product over the given dimensions
+"""
+function distribute(A::ParKron, dims_in::Vector{Int64}, dims_out::Vector{Int64}=dims_in, parent_comm=MPI.COMM_WORLD)
     comm_in  = MPI.Cart_create(parent_comm, dims_in)
     comm_out = MPI.Cart_create(parent_comm, dims_out)
 
+    return distribute(A, comm_in, comm_out, parent_comm)
+end
+
+"""
+Distributes Kronecker product over the given communicator
+"""
+function distribute(A::ParKron, comm_in::MPI.Comm, comm_out::MPI.Comm, parent_comm=MPI.COMM_WORLD)
+
     dims, _, _ = MPI.Cart_get(comm_in)
+    dims_out, _, _ = MPI.Cart_get(comm_out)
+
     N = length(dims)
     @assert length(A.ops) == N
 
@@ -271,6 +282,7 @@ function distribute(A::ParKron, dims_in, dims_out=dims_in, parent_comm=MPI.COMM_
         coords_i = MPI.Cart_coords(comm_i)
 
         # Create repartition operator
+        !isequal(dims_prev, dims_i) && (MPI.Comm_rank(parent_comm) == 0) && println("Adding Repartition")
         !isequal(dims_prev, dims_i) && pushfirst!(ops, ParRepartition(DDT(Ai), comm_prev, comm_i, tuple(size_curr...)))
 
         # Create Kronecker w/ distributed identities
@@ -284,7 +296,7 @@ function distribute(A::ParKron, dims_in, dims_out=dims_in, parent_comm=MPI.COMM_
             pushfirst!(idents_dim_upper, ParDistributed(ParIdentity(DDT(Ai), size_curr[j]), coords_i[j], dims_i[j]))
         end
 
-        pushfirst!(ops, ParKron(idents_dim_lower..., ParBroadcasted(Ai, comm_i), idents_dim_upper...))
+        pushfirst!(ops, ParKron(idents_dim_lower..., rebuild(ParBroadcasted(Ai, comm_i), [Ai]), idents_dim_upper...))
 
         size_curr[d] = Range(Ai)
         comm_prev = comm_i
