@@ -220,6 +220,7 @@ Apply a linear operator to a vector or matrix through multiplication.
 """
 *(A::ParOperator{D,R,L,<:Applicable,T}, x::X) where {D,R,L,T,X<:AbstractVector{D}} = A(x)
 *(A::ParOperator{D,R,L,<:Applicable,T}, x::X) where {D,R,L,T,X<:AbstractMatrix{D}} = A(x)
+*(A::ParOperator{D,R,L,<:Applicable,T}, x::X) where {D,R,L,T,X<:AbstractArray{D,3}} = A(x)
 
 """
 Apply a matrix to a linear operator. By default, use rules of the adjoint.
