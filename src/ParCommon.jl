@@ -66,17 +66,17 @@ end
 function rotate_dims_batched(x, rot)
     # TODO: Fix this bottleneck to be memory efficient to scale to 512^3
     # println("CALLED ROTATE: ", length(x), " ", size(x))
-    # ns = (circshift(collect(size(x)[1:end-1]), rot)..., size(x)[end])
-    # return reshape(x, ns)
-    n = length(size(x))
-    perm = [circshift(collect(1:n-1), rot)..., n]
+    ns = (circshift(collect(size(x)[1:end-1]), rot)..., size(x)[end])
+    return reshape(x, ns)
+    # n = length(size(x))
+    # perm = [circshift(collect(1:n-1), rot)..., n]
 
-    device = get_device(x)
-    if device != "cpu"
-        0 in size(x) && return permutedims(x |> cpu, perm) |> gpu
-    end
+    # device = get_device(x)
+    # if device != "cpu"
+    #     0 in size(x) && return permutedims(x |> cpu, perm) |> gpu
+    # end
 
-    return permutedims(x, perm)
+    # return permutedims(x, perm)
 end
 
 function as_matrix(x)
