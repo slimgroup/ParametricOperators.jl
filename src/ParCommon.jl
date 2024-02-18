@@ -64,7 +64,8 @@ function local_size(global_size::Integer, rank::Integer, num_ranks::Integer)
 end
 
 function rotate_dims_batched(x, rot)
-    println("CALLED ROTATE: ", length(x), " ", size(x))
+    # TODO: Fix this bottleneck to be memory efficient to scale to 512^3
+    # println("CALLED ROTATE: ", length(x), " ", size(x))
     # ns = (circshift(collect(size(x)[1:end-1]), rot)..., size(x)[end])
     # return reshape(x, ns)
     n = length(size(x))
