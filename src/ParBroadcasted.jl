@@ -36,6 +36,7 @@ end
 *(x::X, A::ParBroadcasted{D,R,Linear,<:Applicable,F}) where {D,R,F,X<:AbstractMatrix{D}} = x*A.op
 +(x::X, A::ParBroadcasted{D,R,Linear,<:Applicable,F}) where {D,R,F,X<:AbstractMatrix{D}} = x+A.op
 +(x::X, A::ParBroadcasted{D,R,Linear,<:Applicable,F}) where {D,R,F,X<:AbstractArray{D}} = x+A.op
+/(A::ParBroadcasted{D,R,Linear,<:Applicable,F}, x::X) where {D,R,F,X<:AbstractArray{D}} = A.op/x
 
 function ChainRulesCore.rrule(A::ParBroadcasted{D,R,L,Parametric,F}, params) where {D,R,L,F}
     op_out = A(params)

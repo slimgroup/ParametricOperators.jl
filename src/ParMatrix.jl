@@ -57,6 +57,8 @@ end
 +(x::X, A::ParParameterized{T,T,Linear,ParAdjoint{T,T,Parametric,ParMatrix{T}},V}) where {T,V,X<:AbstractArray{T}} = x+A.params[A.op.op]'
 +(x::X, A::ParParameterized{T,T,Linear,ParAdjoint{T,T,Parametric,ParMatrix{T}},V}) where {T,V,X<:AbstractMatrix{T}} = x+A.params[A.op.op]'
 
+/(A::ParParameterized{T,T,Linear,ParMatrix{T},V}, x::X) where {T,V,X<:AbstractMatrix{T}} = A.params./x
+
 function to_Dict(A::ParMatrix{T}) where {T}
     rv = Dict{String, Any}(
         "type" => "ParMatrix",
