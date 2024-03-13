@@ -7,10 +7,11 @@ struct ParMatrix{T} <: ParLinearOperator{T,T,Parametric,External}
     m::Int
     n::Int
     id::Any
-    ParMatrix(T::DataType, m::Int, n::Int, id) = new{T}(m, n, id)
-    ParMatrix(m::Int, n::Int, id) = new{Float64}(m, n, id)
-    ParMatrix(T::DataType, m::Int, n::Int) = new{T}(m, n, uuid4(Random.GLOBAL_RNG))
-    ParMatrix(m::Int, n::Int) = new{Float64}(m, n, uuid4(Random.GLOBAL_RNG))
+    init::Function
+    ParMatrix(T::DataType, m::Int, n::Int, id; init::Function=rand) = new{T}(m, n, id, init)
+    ParMatrix(m::Int, n::Int, id; init::Function=rand) = new{Float64}(m, n, id, init)
+    ParMatrix(T::DataType, m::Int, n::Int; init::Function=rand) = new{T}(m, n, uuid4(Random.GLOBAL_RNG), init)
+    ParMatrix(m::Int, n::Int; init::Function=rand) = new{Float64}(m, n, uuid4(Random.GLOBAL_RNG), init)
 end
 
 Domain(A::ParMatrix) = A.n
@@ -20,23 +21,8 @@ complexity(A::ParMatrix{T}) where {T} = elementwise_multiplication_cost(T)*A.n*A
 
 distribute(A::ParMatrix) = ParBroadcasted(A)
 
-function init!(A::ParMatrix{T}, d::Parameters) where {T<:Real}
-    if A.n == 1
-        d[A] = zeros(T, A.m, A.n)
-        return
-    end
-    scale = sqrt(24.0f0 / sum((A.m, A.n)))
-    d[A] = (rand(T, (A.n, A.m)) .- 0.5f0) .* scale
-    d[A] = permutedims(d[A], [2, 1])
-end
-
-function init!(A::ParMatrix{T}, d::Parameters) where {T<:Complex}
-    if A.n == 1
-        d[A] = zeros(T, A.m, A.n)
-        return
-    end
-    d[A] = rand(T, A.n, A.m)/convert(real(T), sqrt(A.m*A.n))
-    d[A] = permutedims(d[A], [2, 1])
+function init!(A::ParMatrix{T}, d::Parameters) where {T<:Any}
+    d[A] = A.init(T, A.m, A.n)
 end
 
 (A::ParParameterized{T,T,Linear,ParMatrix{T},V})(x::X) where {T,V,X<:AbstractVector{T}} = A.params*x
