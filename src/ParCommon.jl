@@ -64,6 +64,7 @@ function local_size(global_size::Integer, rank::Integer, num_ranks::Integer)
 end
 
 function rotate_dims_batched(x, rot)
+    # TODO: Fix this bottleneck.
     n = length(size(x))
     perm = [circshift(collect(1:n-1), rot)..., n]
 

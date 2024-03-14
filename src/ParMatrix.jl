@@ -18,6 +18,8 @@ Range(A::ParMatrix) = A.m
 
 complexity(A::ParMatrix{T}) where {T} = elementwise_multiplication_cost(T)*A.n*A.m
 
+distribute(A::ParMatrix) = ParBroadcasted(A)
+
 function init!(A::ParMatrix{T}, d::Parameters) where {T<:Real}
     if A.n == 1
         d[A] = zeros(T, A.m, A.n)
@@ -39,6 +41,7 @@ end
 
 (A::ParParameterized{T,T,Linear,ParMatrix{T},V})(x::X) where {T,V,X<:AbstractVector{T}} = A.params*x
 (A::ParParameterized{T,T,Linear,ParMatrix{T},V})(x::X) where {T,V,X<:AbstractMatrix{T}} = A.params*x
+(A::ParParameterized{T,T,Linear,ParMatrix{T},V})(x::X) where {T,V,X<:AbstractArray{T,3}} = batched_mul(A.params,x)
 (A::ParParameterized{T,T,Linear,ParAdjoint{T,T,Parametric,ParMatrix{T}},V})(x::X) where {T,V,X<:AbstractVector{T}} = A.params[A.op.op]'*x
 (A::ParParameterized{T,T,Linear,ParAdjoint{T,T,Parametric,ParMatrix{T}},V})(x::X) where {T,V,X<:AbstractMatrix{T}} = A.params[A.op.op]'*x
 
@@ -53,6 +56,8 @@ end
 +(x::X, A::ParParameterized{T,T,Linear,ParAdjoint{T,T,Parametric,ParMatrix{T}},V}) where {T,V,X<:AbstractVector{T}} = x+A.params[A.op.op]'
 +(x::X, A::ParParameterized{T,T,Linear,ParAdjoint{T,T,Parametric,ParMatrix{T}},V}) where {T,V,X<:AbstractArray{T}} = x+A.params[A.op.op]'
 +(x::X, A::ParParameterized{T,T,Linear,ParAdjoint{T,T,Parametric,ParMatrix{T}},V}) where {T,V,X<:AbstractMatrix{T}} = x+A.params[A.op.op]'
+
+/(A::ParParameterized{T,T,Linear,ParMatrix{T},V}, x::X) where {T,V,X<:AbstractMatrix{T}} = A.params./x
 
 function to_Dict(A::ParMatrix{T}) where {T}
     rv = Dict{String, Any}(

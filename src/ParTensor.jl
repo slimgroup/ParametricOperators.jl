@@ -1,8 +1,5 @@
 export ParTensor
 
-using OMEinsum
-using Flux:batched_mul
-
 """
 Dense N dimensional tensor operator.
 """
