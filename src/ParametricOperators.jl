@@ -10,6 +10,7 @@ using CUDA
 using DataStructures: OrderedDict, DefaultDict
 using FFTW
 using LaTeXStrings
+using LinearAlgebra
 using Match
 using MPI
 using Random
@@ -51,6 +52,20 @@ include("ParTensor.jl")
 include("ParDiagonal.jl")
 include("ParDFT.jl")
 include("ParRestriction.jl")
+
+# Hierarchical Tucker tensor types and algorithms
+include("DimensionTree.jl")
+include("HTTensor.jl")
+include("operations.jl")
+include("orthogonalize.jl")
+include("truncate.jl")
+include("compress.jl")
+include("optimize.jl")
+include("ht_reconstruct.jl")
+
+# HT Tucker parametric operators
+include("ParHTTucker.jl")
+include("ParSampling.jl")
 
 # Operator serialization
 include("ASTSerialization.jl")
